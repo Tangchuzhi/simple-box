@@ -1,0 +1,315 @@
+<div class="fs-module-container">
+    <h4 class="fs-module-title">
+        <i class="fa-solid fa-layer-group"></i> 隐藏楼层
+    </h4>
+
+    <!-- 隐藏模式选择 -->
+    <div class="fs-mode-section">
+        <div class="fs-mode-label">隐藏模式</div>
+        <div class="fs-mode-options">
+
+            <label class="fs-mode-item">
+                <input type="radio" name="fs-hide-mode" value="A" />
+                <div class="fs-mode-card">
+                    <span class="fs-mode-badge fs-mode-badge--a">A</span>
+                    <div class="fs-mode-text">
+                        <strong>视觉+指令隐藏</strong>
+                    </div>
+                </div>
+            </label>
+
+            <label class="fs-mode-item">
+                <input type="radio" name="fs-hide-mode" value="B" />
+                <div class="fs-mode-card">
+                    <span class="fs-mode-badge fs-mode-badge--b">B</span>
+                    <div class="fs-mode-text">
+                        <strong>仅指令隐藏</strong>
+                    </div>
+                </div>
+            </label>
+
+        </div>
+    </div>
+
+    <!-- 楼层范围输入 -->
+    <div class="fs-range-row">
+        <div class="fs-input-group">
+            <label for="fs-start-floor">起始楼层</label>
+            <input
+                type="number"
+                id="fs-start-floor"
+                min="0"
+                placeholder="例: 0 或 1"
+            />
+        </div>
+        <span class="fs-range-sep">—</span>
+        <div class="fs-input-group">
+            <label for="fs-end-floor">结束楼层</label>
+            <input
+                type="number"
+                id="fs-end-floor"
+                min="0"
+                placeholder="例: 5"
+            />
+        </div>
+    </div>
+
+    <!-- 操作按钮组 -->
+    <div class="fs-action-row">
+        <button
+            class="fs-btn fs-btn--hide"
+            onclick="document.dispatchEvent(new CustomEvent('FloorSimplification_hide'))"
+            title="隐藏指定范围内的楼层"
+        >
+            <i class="fa-solid fa-eye-slash"></i> 隐藏楼层
+        </button>
+        <button
+            class="fs-btn fs-btn--show"
+            onclick="document.dispatchEvent(new CustomEvent('FloorSimplification_unhide'))"
+            title="取消隐藏指定范围内的楼层"
+        >
+            <i class="fa-solid fa-eye"></i> 显示楼层
+        </button>
+        <button
+            class="fs-btn fs-btn--all"
+            onclick="document.dispatchEvent(new CustomEvent('FloorSimplification_showAll'))"
+            title="取消隐藏所有楼层"
+        >
+            <i class="fa-solid fa-expand"></i> 显示全部
+        </button>
+    </div>
+
+    <!-- 提示信息 -->
+    <div class="fs-tip-box">
+        <i class="fa-solid fa-circle-info"></i>
+        楼层 <strong>0</strong> 代表开场白，楼层 <strong>1</strong> 起为正文消息。
+        隐藏后原文仍保留，不影响 AI 上下文。
+    </div>
+</div>
+
+<style>
+/* ── 模块容器 ───────────────────────────────────────────────── */
+.fs-module-container {
+    padding: 4px 2px;
+}
+
+.fs-module-title {
+    margin: 0 0 12px 0;
+    text-align: center;
+    font-size: 13px;
+    color: var(--SmartThemeTextColor);
+}
+
+/* ── 楼层范围输入行 ─────────────────────────────────────────── */
+.fs-range-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.fs-input-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.fs-input-group label {
+    font-size: 11px;
+    font-weight: bold;
+    color: var(--SmartThemeTextColor);
+    margin-bottom: 4px;
+    white-space: nowrap;
+}
+
+.fs-input-group input {
+    padding: 7px 9px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.2));
+    border-radius: 4px;
+    background: var(--SmartThemeChatTintColor, rgba(255, 255, 255, 0.08));
+    color: var(--SmartThemeTextColor);
+    font-size: 12px;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fs-input-group input:focus {
+    outline: none;
+    border-color: var(--SmartThemeQuoteColor, #007bff);
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.18);
+}
+
+.fs-range-sep {
+    color: var(--SmartThemeTextColor);
+    opacity: 0.45;
+    font-size: 15px;
+    padding-bottom: 7px;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+/* ── 操作按钮组 ─────────────────────────────────────────────── */
+.fs-action-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.fs-btn {
+    flex: 1;
+    min-width: 75px;
+    padding: 8px 10px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.2));
+    border-radius: 5px;
+    background: var(--SmartThemeChatTintColor, rgba(255, 255, 255, 0.08));
+    color: var(--SmartThemeTextColor);
+    cursor: pointer;
+    font-size: 12px;
+    transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+    white-space: nowrap;
+}
+
+.fs-btn:hover {
+    border-color: var(--SmartThemeQuoteColor, #007bff);
+    color: var(--SmartThemeQuoteColor, #007bff);
+}
+
+.fs-btn--hide:hover {
+    border-color: #e67e22;
+    color: #e67e22;
+    background: rgba(230, 126, 34, 0.08);
+}
+
+.fs-btn--show:hover {
+    border-color: #27ae60;
+    color: #27ae60;
+    background: rgba(39, 174, 96, 0.08);
+}
+
+.fs-btn--all:hover {
+    border-color: #2980b9;
+    color: #2980b9;
+    background: rgba(41, 128, 185, 0.08);
+}
+
+/* ── 提示框 ─────────────────────────────────────────────────── */
+.fs-tip-box {
+    background: rgba(52, 152, 219, 0.08);
+    border-left: 3px solid rgba(52, 152, 219, 0.5);
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-size: 11px;
+    color: var(--SmartThemeTextColor);
+    opacity: 0.85;
+    line-height: 1.5;
+}
+
+.fs-tip-box strong {
+    color: var(--SmartThemeQuoteColor, #3498db);
+}
+
+/* ── 隐藏模式选择器 ────────────────────────────────────────── */
+.fs-mode-section {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.1));
+}
+
+.fs-mode-label {
+    font-size: 11px;
+    font-weight: bold;
+    color: var(--SmartThemeTextColor);
+    margin-bottom: 7px;
+    opacity: 0.85;
+}
+
+.fs-mode-options {
+    display: flex;
+    gap: 7px;
+}
+
+.fs-mode-item {
+    flex: 1;
+    cursor: pointer;
+    user-select: none;
+    min-width: 0;
+}
+
+.fs-mode-item input[type="radio"] {
+    display: none;
+}
+
+.fs-mode-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.2));
+    border-radius: 6px;
+    background: var(--SmartThemeChatTintColor, rgba(255, 255, 255, 0.05));
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.fs-mode-item input[type="radio"]:checked + .fs-mode-card {
+    border-color: var(--SmartThemeQuoteColor, #007bff);
+    background: rgba(0, 123, 255, 0.08);
+    box-shadow: 0 0 0 1px var(--SmartThemeQuoteColor, #007bff) inset;
+}
+
+.fs-mode-badge {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.fs-mode-badge--a {
+    background: rgba(230, 126, 34, 0.18);
+    color: #e67e22;
+    border: 1px solid rgba(230, 126, 34, 0.45);
+}
+
+.fs-mode-badge--b {
+    background: rgba(39, 174, 96, 0.18);
+    color: #27ae60;
+    border: 1px solid rgba(39, 174, 96, 0.45);
+}
+
+.fs-mode-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.fs-mode-text strong {
+    font-size: 11px;
+    color: var(--SmartThemeTextColor);
+    white-space: nowrap;
+}
+
+.fs-mode-text small {
+    font-size: 10px;
+    color: var(--SmartThemeTextColor);
+    opacity: 0.6;
+    white-space: nowrap;
+}
+
+/* ── 响应式 ─────────────────────────────────────────────────── */
+@media (max-width: 380px) {
+    .fs-action-row {
+        flex-direction: column;
+    }
+    .fs-btn {
+        min-width: unset;
+    }
+}
+</style>
