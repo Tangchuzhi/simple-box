@@ -1,4 +1,4 @@
-# 楼层精简 (Floor-Simplification)
+# 简单盒子
 
 SillyTavern 扩展插件，专注于聊天楼层的精准显示与隐藏管理。
 
@@ -17,7 +17,7 @@ SillyTavern 扩展插件，专注于聊天楼层的精准显示与隐藏管理�
 ## 目录结构
 
 ```
-Floor-Simplification/
+simple-box/
 ├── manifest.json          # 插件清单（SillyTavern 读取）
 ├── index.ts               # 主入口 TypeScript 源码
 ├── index.js               # 编译输出（SillyTavern 加载此文件）
@@ -26,7 +26,7 @@ Floor-Simplification/
 ├── package.json           # 构建脚本
 ├── types/
 │   └── globals.d.ts       # SillyTavern 全局变量类型声明
-└── 楼层精简/              # 功能子模块（可独立拔插）
+└── 隐藏楼层/              # 功能子模块（可独立拔插）
     ├── index.ts           # 功能逻辑 TypeScript 源码
     ├── index.js           # 编译输出
     └── index.html         # 功能 UI 模板
@@ -36,7 +36,7 @@ Floor-Simplification/
 
 ## 安装
 
-将整个 `Floor-Simplification` 文件夹放入 SillyTavern 的以下目录：
+将整个 `simple-box` 文件夹放入 SillyTavern 的以下目录：
 
 ```
 SillyTavern/data/<用户名>/extensions/
@@ -48,7 +48,7 @@ SillyTavern/data/<用户名>/extensions/
 SillyTavern/public/scripts/extensions/third-party/
 ```
 
-重启 SillyTavern 后，在 **扩展设置** 面板中找到 **楼层精简** 即可使用。
+重启 SillyTavern 后，在 **扩展设置** 面板中找到 **简单盒子** 即可使用。
 
 ---
 
