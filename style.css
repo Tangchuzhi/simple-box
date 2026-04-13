@@ -1,0 +1,39 @@
+/* ============================================================
+   Floor-Simplification — 楼层精简  |  主样式表
+   ============================================================ */
+
+/* 减小内联抽屉内边距，与 SillyTavern 面板风格统一 */
+#simple-box-settings .inline-drawer-content {
+    padding: 5px;
+}
+
+/* ── 外层面板容器 ─────────────────────────────────────────── */
+.fs-panel {
+    padding: 5px 0;
+}
+
+/* ── 顶部版本信息行 ───────────────────────────────────────── */
+.fs-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px 0;
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.15));
+}
+
+.fs-version-display {
+    font-size: 11px;
+    color: var(--SmartThemeTextColor);
+    opacity: 0.7;
+    text-align: center;
+    letter-spacing: 0.02em;
+}
+
+/* ── 功能内容区域 ─────────────────────────────────────────── */
+.fs-content-area {
+    min-height: 120px;
+    padding: 10px;
+    background: var(--SmartThemeChatTintColor, rgba(0, 0, 0, 0.05));
+    border-radius: 8px;
+}
