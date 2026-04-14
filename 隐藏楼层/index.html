@@ -155,12 +155,12 @@
     display: flex;
     gap: 6px;
     margin-bottom: 12px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
 }
 
 .fs-btn {
     flex: 1;
-    min-width: 75px;
+    min-width: 0;
     padding: 8px 10px;
     border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.2));
     border-radius: 5px;
@@ -305,11 +305,9 @@
 
 /* ── 响应式 ─────────────────────────────────────────────────── */
 @media (max-width: 380px) {
-    .fs-action-row {
-        flex-direction: column;
-    }
     .fs-btn {
-        min-width: unset;
+        padding: 8px 6px;
+        font-size: 11px;
     }
 }
 </style>
