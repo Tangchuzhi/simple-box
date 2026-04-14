@@ -35,6 +35,9 @@
     const SK_WI_ENTRY = 'smry_wi_entry';
     const SK_WI_MODE = 'smry_wi_mode';
     const SK_WI_EXTRACT = 'smry_wi_extract';
+    const SK_WI_EXTRACT_MODE = 'smry_wi_extract_mode';
+    const SK_WI_EXTRACT_CUSTOM = 'smry_wi_extract_custom';
+    const SK_HIDE_SOURCE = 'smry_hide_source';
     // ── SillyTavern extension_prompt_types 数值 ──────────────────────────────
     const POS_IN_PROMPT = 0; // "after"  : 主提示词末尾（系统区，玩家不可见）
     const POS_IN_CHAT = 1; // "chat"   : 聊天历史中（指定 depth，玩家不可见）
@@ -46,6 +49,15 @@
     const INJECT_KEY_AB = 'smry-context'; // A+B 内容
     const INJECT_KEY_LAUNCH = 'smry-launch'; // C 触发
     let presets_a = [];
+    let suppressChatFilter = false;
+    let summarySession = {
+        active: false,
+        start: 0,
+        end: 0,
+        fullChat: null,
+        generatedMessageId: null,
+        pendingPreview: false,
+    };
     // ── 内置预设（首次加载时自动填充） ────────────────────────────────────────
     const DEFAULT_PRESETS = [
         {
@@ -191,6 +203,26 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         const el = document.getElementById(id);
         return el ? el.value : '';
     }
+    function setPreviewStatus(text) {
+        const el = document.getElementById('smry-preview-status');
+        if (el)
+            el.textContent = text;
+    }
+    function setPreviewText(text) {
+        const el = document.getElementById('smry-preview');
+        if (el)
+            el.value = text;
+    }
+    function getPreviewText() {
+        return getInputVal('smry-preview').trim();
+    }
+    function toggleCustomExtractInput() {
+        const mode = getExtractMode();
+        const el = document.getElementById('smry-wi-extract-custom');
+        if (!el)
+            return;
+        el.style.display = mode === 'custom' ? '' : 'none';
+    }
     // ── 注入管理（使用 ST Context API，无特殊字符解析问题） ────────────────────
     /**
      * 向 AI 上下文注入内容（玩家不可见）。
@@ -293,19 +325,27 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         const v = getInputVal('smry-end-floor').trim();
         return v !== '' ? v : '{{lastMessageId}}';
     }
+    function getRangeNumbers() {
+        const ctx = getCtx();
+        const chatLength = Array.isArray(ctx.chat) ? Math.max(ctx.chat.length - 1, 0) : 0;
+        const startRaw = getInputVal('smry-start-floor').trim();
+        const endRaw = getInputVal('smry-end-floor').trim();
+        const start = startRaw === '' ? 0 : parseInt(startRaw, 10);
+        const end = endRaw === '' ? chatLength : parseInt(endRaw, 10);
+        if (isNaN(start) || isNaN(end) || start < 0 || end < 0) {
+            throw new Error('请输入有效的楼层范围。');
+        }
+        return start <= end ? { start, end } : { start: end, end: start };
+    }
     function getLaunchRole() {
         var _a;
         const r = document.querySelector('input[name="smry-launch-role"]:checked');
-        return ((_a = r === null || r === void 0 ? void 0 : r.value) !== null && _a !== void 0 ? _a : 'user');
+        return ((_a = r === null || r === void 0 ? void 0 : r.value) !== null && _a !== void 0 ? _a : 'assistant');
     }
     function getTriggerText() {
         return getInputVal('smry-trigger-text').trim() || '角色扮演暂停、剧情推进暂停，开始总结';
     }
     // ── 世界书辅助 ────────────────────────────────────────────────────────────
-    function isWiEnabled() {
-        var _a, _b;
-        return (_b = (_a = document.getElementById('smry-wi-enabled')) === null || _a === void 0 ? void 0 : _a.checked) !== null && _b !== void 0 ? _b : false;
-    }
     function getWiBookName() {
         return getInputVal('smry-wi-bookname').trim();
     }
@@ -320,6 +360,21 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         var _a, _b;
         return (_b = (_a = document.getElementById('smry-wi-extract')) === null || _a === void 0 ? void 0 : _a.checked) !== null && _b !== void 0 ? _b : true;
     }
+    function getExtractMode() {
+        var _a;
+        const el = document.getElementById('smry-wi-extract-mode');
+        return ((_a = el === null || el === void 0 ? void 0 : el.value) !== null && _a !== void 0 ? _a : 'thinking');
+    }
+    function getCustomExtractTags() {
+        return getInputVal('smry-wi-extract-custom')
+            .split(',')
+            .map(v => v.trim())
+            .filter(Boolean);
+    }
+    function shouldHideSourceFloors() {
+        var _a, _b;
+        return (_b = (_a = document.getElementById('smry-hide-source')) === null || _a === void 0 ? void 0 : _a.checked) !== null && _b !== void 0 ? _b : true;
+    }
     /** Auto-detect the world book bound to the current character */
     function detectCharacterWorldBook() {
         var _a, _b, _c, _d;
@@ -331,7 +386,23 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     }
     /** Remove <thinking>...</thinking> blocks entirely; all other tags are kept as-is. */
     function cleanAiResponse(text) {
-        let result = text.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
+        const tags = isWiExtractEnabled()
+            ? (() => {
+                const mode = getExtractMode();
+                if (mode === 'thinking')
+                    return ['thinking'];
+                if (mode === 'think')
+                    return ['think'];
+                if (mode === 'custom')
+                    return getCustomExtractTags();
+                return ['thinking'];
+            })()
+            : [];
+        let result = text;
+        for (const tag of tags) {
+            const safeTag = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            result = result.replace(new RegExp(`<${safeTag}>[\\s\\S]*?<\\/${safeTag}>`, 'gi'), '');
+        }
         result = result.replace(/\n{3,}/g, '\n\n');
         return result.trim();
     }
@@ -358,7 +429,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             selectiveLogic: 0,
             addMemo: false,
             order: 100,
-            position: 1,
+            position: 4,
             disable: false,
             excludeRecursion: false,
             preventRecursion: false,
@@ -389,11 +460,18 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             matchCreatorNotes: false,
         };
     }
+    function normalizeWiEntry(entry) {
+        entry.constant = true;
+        entry.selective = true;
+        entry.position = 4;
+        entry.depth = 9999;
+        entry.role = 0;
+    }
     /**
      * Read the last AI message, optionally extract <janusdiary>, then write to world info.
      */
-    async function saveToWorldInfo() {
-        var _a, _b;
+    async function saveToWorldInfo(contentOverride) {
+        var _a, _b, _c;
         const ctx = getCtx();
         // ── Resolve world book name ──────────────────────────────
         let bookName = getWiBookName();
@@ -406,14 +484,17 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             return;
         }
         // ── Get content from last AI message ────────────────────
-        const chat = (_b = ctx.chat) !== null && _b !== void 0 ? _b : [];
-        const lastAi = [...chat].reverse().find((m) => !m.is_user && !m.is_system);
-        if (!(lastAi === null || lastAi === void 0 ? void 0 : lastAi.mes)) {
-            if (typeof toastr !== 'undefined')
-                toastr.warning('找不到 AI 回复内容。', '总结→世界书');
-            return;
+        let content = (_b = contentOverride === null || contentOverride === void 0 ? void 0 : contentOverride.trim()) !== null && _b !== void 0 ? _b : '';
+        if (!content) {
+            const chat = (_c = ctx.chat) !== null && _c !== void 0 ? _c : [];
+            const lastAi = [...chat].reverse().find((m) => !m.is_user && !m.is_system);
+            if (!(lastAi === null || lastAi === void 0 ? void 0 : lastAi.mes)) {
+                if (typeof toastr !== 'undefined')
+                    toastr.warning('找不到 AI 回复内容。', '总结→世界书');
+                return;
+            }
+            content = lastAi.mes;
         }
-        let content = lastAi.mes;
         if (isWiExtractEnabled()) {
             content = cleanAiResponse(content);
         }
@@ -435,6 +516,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         const existingUid = Object.keys(data.entries).find((k) => data.entries[k].comment === entryName);
         if (existingUid !== undefined) {
             const entry = data.entries[existingUid];
+            normalizeWiEntry(entry);
             if (getWiMode() === 'overwrite') {
                 entry.content = content;
             }
@@ -451,6 +533,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
                 return;
             }
             data.entries[uid] = makeWiEntry(uid, entryName, content);
+            normalizeWiEntry(data.entries[uid]);
             console.log(`${LOG_PREFIX} 已创建新条目「${entryName}」uid=${uid}`);
         }
         // ── Save ─────────────────────────────────────────────────
@@ -466,11 +549,154 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
                 toastr.error('保存世界书失败，请检查控制台。', '总结→世界书');
         }
     }
+    function filterChatByRange(chat, start, end) {
+        return chat.filter((_, index) => index >= start && index <= end);
+    }
+    function applyChatRangeFilter(start, end) {
+        const ctx = getCtx();
+        if (!Array.isArray(ctx.chat) || summarySession.active)
+            return;
+        const snapshot = ctx.chat.slice();
+        const filtered = filterChatByRange(snapshot, start, end);
+        summarySession = {
+            active: true,
+            start,
+            end,
+            fullChat: snapshot,
+            generatedMessageId: null,
+            pendingPreview: true,
+        };
+        suppressChatFilter = true;
+        ctx.chat.splice(0, ctx.chat.length, ...filtered);
+        suppressChatFilter = false;
+        console.log(`${LOG_PREFIX} 已临时过滤聊天楼层 ${start}~${end}，原始消息数=${snapshot.length}，保留=${filtered.length}`);
+    }
+    function restoreChatAfterSummary() {
+        const ctx = getCtx();
+        if (!summarySession.active || !summarySession.fullChat || !Array.isArray(ctx.chat))
+            return;
+        const generatedMessages = ctx.chat.slice(summarySession.fullChat.length > ctx.chat.length ? ctx.chat.length : summarySession.fullChat.length);
+        const restoredChat = summarySession.fullChat.slice();
+        if (generatedMessages.length > 0) {
+            restoredChat.push(...generatedMessages);
+            summarySession.generatedMessageId = restoredChat.length - 1;
+        }
+        suppressChatFilter = true;
+        ctx.chat.splice(0, ctx.chat.length, ...restoredChat);
+        suppressChatFilter = false;
+        summarySession.fullChat = null;
+        summarySession.active = false;
+        console.log(`${LOG_PREFIX} 已恢复原始聊天数组`);
+    }
+    function getLatestAiMessageInfo() {
+        var _a;
+        const ctx = getCtx();
+        const chat = (_a = ctx.chat) !== null && _a !== void 0 ? _a : [];
+        for (let i = chat.length - 1; i >= 0; i--) {
+            const message = chat[i];
+            if (!(message === null || message === void 0 ? void 0 : message.is_user) && !(message === null || message === void 0 ? void 0 : message.is_system) && typeof (message === null || message === void 0 ? void 0 : message.mes) === 'string') {
+                return { id: i, text: message.mes };
+            }
+        }
+        return { id: null, text: '' };
+    }
+    function updatePreviewFromLatestMessage() {
+        const latest = getLatestAiMessageInfo();
+        if (!latest.text) {
+            setPreviewStatus('未捕获到总结');
+            return;
+        }
+        if (latest.id !== null)
+            summarySession.generatedMessageId = latest.id;
+        setPreviewText(cleanAiResponse(latest.text));
+        setPreviewStatus('已生成，等待确认');
+    }
+    async function finalizeSummaryToWorldInfo() {
+        const preview = getPreviewText();
+        if (!preview) {
+            if (typeof toastr !== 'undefined')
+                toastr.warning('当前没有可写入世界书的总结预览。', '总结');
+            return;
+        }
+        await saveToWorldInfo(preview);
+        const ctx = getCtx();
+        if (summarySession.generatedMessageId !== null) {
+            try {
+                await ctx.deleteMessage(summarySession.generatedMessageId);
+            }
+            catch (err) {
+                console.warn(`${LOG_PREFIX} 删除本次总结消息失败:`, err);
+            }
+        }
+        if (shouldHideSourceFloors()) {
+            callSlashCommand(`/hide ${summarySession.start}-${summarySession.end}`);
+        }
+        try {
+            await ctx.saveChat();
+        }
+        catch (err) {
+            console.warn(`${LOG_PREFIX} 保存聊天失败:`, err);
+        }
+        setPreviewStatus('已写入世界书');
+        setPreviewText('');
+        summarySession.generatedMessageId = null;
+    }
+    async function rerollSummary() {
+        const ctx = getCtx();
+        if (summarySession.generatedMessageId !== null) {
+            try {
+                await ctx.deleteMessage(summarySession.generatedMessageId);
+            }
+            catch (err) {
+                console.warn(`${LOG_PREFIX} 删除旧总结消息失败:`, err);
+            }
+        }
+        setPreviewText('');
+        setPreviewStatus('正在重ROLL');
+        summarySession.generatedMessageId = null;
+        await executeSummary(true);
+    }
+    function clearPreview() {
+        setPreviewText('');
+        setPreviewStatus('待生成');
+        summarySession.generatedMessageId = null;
+    }
+    function handleChatCompletionPromptReady(eventData) {
+        if (!summarySession.active || suppressChatFilter || !Array.isArray(eventData.chat))
+            return;
+        eventData.chat = eventData.chat.filter((item) => {
+            var _a;
+            const role = String((_a = item === null || item === void 0 ? void 0 : item.role) !== null && _a !== void 0 ? _a : '').toLowerCase();
+            return role !== 'user' && role !== 'assistant' ? true : true;
+        });
+    }
+    function bindSummaryEvents() {
+        var _a;
+        const ctx = getCtx();
+        const eventSource = ctx.eventSource;
+        const eventTypes = (_a = ctx.eventTypes) !== null && _a !== void 0 ? _a : ctx.event_types;
+        if (!eventSource || !eventTypes)
+            return;
+        eventSource.on(eventTypes.CHAT_COMPLETION_PROMPT_READY, handleChatCompletionPromptReady);
+        eventSource.on(eventTypes.GENERATION_ENDED, async () => {
+            if (!summarySession.pendingPreview)
+                return;
+            await delay(150);
+            restoreChatAfterSummary();
+            updatePreviewFromLatestMessage();
+            summarySession.pendingPreview = false;
+        });
+        eventSource.on(eventTypes.GENERATION_STOPPED, () => {
+            if (!summarySession.pendingPreview)
+                return;
+            restoreChatAfterSummary();
+            setPreviewStatus('生成已停止');
+            summarySession.pendingPreview = false;
+        });
+    }
     // ── 核心执行 ──────────────────────────────────────────────────────────────
-    async function executeSummary() {
+    async function executeSummary(isReroll = false) {
         const promptA = getInputVal('smry-prompt-a').trim();
-        const startFloor = getStartFloor();
-        const endFloor = getEndFloor();
         const launchRole = getLaunchRole();
         const triggerText = getTriggerText();
         if (!promptA) {
@@ -478,50 +704,34 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
                 toastr.warning('请填写总结提示词。', '总结');
             return;
         }
+        let range;
+        try {
+            range = getRangeNumbers();
+        }
+        catch (err) {
+            if (typeof toastr !== 'undefined')
+                toastr.warning(err.message, '总结');
+            return;
+        }
+        clearPreview();
+        setPreviewStatus(isReroll ? '正在重ROLL' : '生成中');
         // 构建注入内容（包含楼层范围说明）
-        const floorNote = `「当前总结范围：第 ${startFloor} 楼 ～ 第 ${endFloor} 楼，请仅基于此范围内的聊天记录进行总结」`;
+        const floorNote = `「当前总结范围：第 ${range.start} 楼 ～ 第 ${range.end} 楼，请仅基于此范围内的聊天记录进行总结」`;
         const fullPrompt = `${floorNote}\n\n${promptA}`;
         // 第一步：静默注入 A+B（ephemeral，生成后自动清除）
         injectContextPrompt(INJECT_KEY_AB, fullPrompt, true);
+        applyChatRangeFilter(range.start, range.end);
         if (typeof toastr !== 'undefined') {
-            toastr.info(`总结已启动（楼层 ${startFloor} ～ ${endFloor}，${launchRole} 模式）`, '总结', { timeOut: 4000 });
+            toastr.info(`总结已启动（楼层 ${range.start} ～ ${range.end}，${launchRole} 模式）`, '总结', { timeOut: 4000 });
         }
         // 等待注入生效
         await delay(200);
         // 第二步：按 C 选项触发
-        if (launchRole === 'user') {
-            // user 身份：发送可见用户消息，ST 自动触发生成
-            const ta = document.querySelector('#send_textarea');
-            const btn = document.querySelector('#send_but');
-            if (ta && btn) {
-                ta.value = triggerText;
-                ta.dispatchEvent(new Event('input', { bubbles: true }));
-                btn.click();
-            }
-        }
-        else {
-            // system / assistant 身份：注入触发消息（不可见），再手动触发生成
-            const roleNum = launchRole === 'assistant' ? ROLE_ASSISTANT : ROLE_SYSTEM;
-            injectChatTrigger(INJECT_KEY_LAUNCH, triggerText, roleNum, true);
-            await delay(200);
-            await triggerGeneration();
-        }
-        console.log(`${LOG_PREFIX} 执行完成 [${startFloor}~${endFloor}] 模式: ${launchRole}`);
-        // ── 自动保存到世界书 ──────────────────────────────────────
-        if (isWiEnabled()) {
-            const ctx = getCtx();
-            const doSave = async () => {
-                await delay(600); // 等待 chat 数组刷新
-                await saveToWorldInfo();
-            };
-            if (ctx.eventSource && ctx.eventTypes) {
-                ctx.eventSource.once(ctx.eventTypes.GENERATION_ENDED, doSave);
-            }
-            else {
-                // fallback: 等待固定时间再保存
-                setTimeout(doSave, 8000);
-            }
-        }
+        const roleNum = launchRole === 'assistant' ? ROLE_ASSISTANT : ROLE_SYSTEM;
+        injectChatTrigger(INJECT_KEY_LAUNCH, triggerText, roleNum, true);
+        await delay(200);
+        await triggerGeneration();
+        console.log(`${LOG_PREFIX} 执行完成 [${range.start}~${range.end}] 模式: ${launchRole}`);
     }
     function delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
@@ -617,9 +827,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         if (launchR)
             localStorage.setItem(SK_LAUNCH, launchR.value);
         // 世界书设置
-        const wiEl = document.getElementById('smry-wi-enabled');
-        if (wiEl)
-            localStorage.setItem(SK_WI_ENABLED, wiEl.checked ? 'true' : 'false');
         localStorage.setItem(SK_WI_BOOKNAME, getInputVal('smry-wi-bookname'));
         localStorage.setItem(SK_WI_ENTRY, getInputVal('smry-wi-entryname'));
         const wiMode = document.querySelector('input[name="smry-wi-mode"]:checked');
@@ -628,9 +835,14 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         const wiExt = document.getElementById('smry-wi-extract');
         if (wiExt)
             localStorage.setItem(SK_WI_EXTRACT, wiExt.checked ? 'true' : 'false');
+        localStorage.setItem(SK_WI_EXTRACT_MODE, getExtractMode());
+        localStorage.setItem(SK_WI_EXTRACT_CUSTOM, getInputVal('smry-wi-extract-custom'));
+        const hideSource = document.getElementById('smry-hide-source');
+        if (hideSource)
+            localStorage.setItem(SK_HIDE_SOURCE, hideSource.checked ? 'true' : 'false');
     }
     function restoreState() {
-        var _a, _b;
+        var _a, _b, _c;
         const set = (id, key, fallback = '') => {
             var _a;
             const el = document.getElementById(id);
@@ -642,7 +854,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         set('smry-end-floor', SK_END_FLOOR);
         set('smry-trigger-text', SK_TRIGGER_TXT, '角色扮演暂停、剧情推进暂停，开始总结');
         // 启动角色
-        const savedRole = ((_a = localStorage.getItem(SK_LAUNCH)) !== null && _a !== void 0 ? _a : 'user');
+        const savedRole = ((_a = localStorage.getItem(SK_LAUNCH)) !== null && _a !== void 0 ? _a : 'assistant');
         const r = document.querySelector(`input[name="smry-launch-role"][value="${savedRole}"]`);
         if (r)
             r.checked = true;
@@ -654,9 +866,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         }
         refreshPresetSelect('A');
         // 世界书设置
-        const wiEl = document.getElementById('smry-wi-enabled');
-        if (wiEl)
-            wiEl.checked = localStorage.getItem(SK_WI_ENABLED) === 'true';
         set('smry-wi-bookname', SK_WI_BOOKNAME);
         const savedEntry = localStorage.getItem(SK_WI_ENTRY);
         const wiEntryEl = document.getElementById('smry-wi-entryname');
@@ -669,6 +878,15 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         const wiExtEl = document.getElementById('smry-wi-extract');
         if (wiExtEl)
             wiExtEl.checked = localStorage.getItem(SK_WI_EXTRACT) !== 'false';
+        const extractModeEl = document.getElementById('smry-wi-extract-mode');
+        if (extractModeEl)
+            extractModeEl.value = (_c = localStorage.getItem(SK_WI_EXTRACT_MODE)) !== null && _c !== void 0 ? _c : 'thinking';
+        set('smry-wi-extract-custom', SK_WI_EXTRACT_CUSTOM);
+        const hideSourceEl = document.getElementById('smry-hide-source');
+        if (hideSourceEl)
+            hideSourceEl.checked = localStorage.getItem(SK_HIDE_SOURCE) !== 'false';
+        toggleCustomExtractInput();
+        clearPreview();
     }
     // ── 自定义事件监听 ────────────────────────────────────────────────────────
     document.addEventListener(`${EVENT_NS}execute`, () => { executeSummary(); });
@@ -685,6 +903,9 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         persistState();
     });
     document.addEventListener(`${EVENT_NS}saveToWI`, () => { saveToWorldInfo(); });
+    document.addEventListener(`${EVENT_NS}confirmPreview`, () => { finalizeSummaryToWorldInfo(); });
+    document.addEventListener(`${EVENT_NS}reroll`, () => { rerollSummary(); });
+    document.addEventListener(`${EVENT_NS}clearPreview`, () => { clearPreview(); });
     document.addEventListener(`${EVENT_NS}detectWorldBook`, () => {
         const detected = detectCharacterWorldBook();
         const el = document.getElementById('smry-wi-bookname');
@@ -701,6 +922,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     });
     // ── 初始化（含重试） ──────────────────────────────────────────────────────
     function tryInit(retry = 0) {
+        var _a;
         try {
             if (typeof SillyTavern === 'undefined' || !SillyTavern.getContext) {
                 throw new Error('SillyTavern 上下文尚未就绪');
@@ -709,13 +931,18 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             if (!ctx)
                 throw new Error('getContext() 返回空值');
             restoreState();
+            bindSummaryEvents();
             // 自动持久化
             ['smry-prompt-a'].forEach(id => { var _a; return (_a = document.getElementById(id)) === null || _a === void 0 ? void 0 : _a.addEventListener('input', persistState); });
             ['smry-start-floor', 'smry-end-floor', 'smry-trigger-text',
-                'smry-wi-bookname', 'smry-wi-entryname'].forEach(id => { var _a; return (_a = document.getElementById(id)) === null || _a === void 0 ? void 0 : _a.addEventListener('change', persistState); });
+                'smry-wi-bookname', 'smry-wi-entryname', 'smry-wi-extract-custom'].forEach(id => { var _a; return (_a = document.getElementById(id)) === null || _a === void 0 ? void 0 : _a.addEventListener('change', persistState); });
             document.querySelectorAll('input[name="smry-launch-role"]').forEach(r => r.addEventListener('change', persistState));
-            ['smry-wi-enabled', 'smry-wi-extract'].forEach(id => { var _a; return (_a = document.getElementById(id)) === null || _a === void 0 ? void 0 : _a.addEventListener('change', persistState); });
+            ['smry-wi-extract', 'smry-hide-source'].forEach(id => { var _a; return (_a = document.getElementById(id)) === null || _a === void 0 ? void 0 : _a.addEventListener('change', persistState); });
             document.querySelectorAll('input[name="smry-wi-mode"]').forEach(r => r.addEventListener('change', persistState));
+            (_a = document.getElementById('smry-wi-extract-mode')) === null || _a === void 0 ? void 0 : _a.addEventListener('change', () => {
+                toggleCustomExtractInput();
+                persistState();
+            });
             console.log(`${LOG_PREFIX} 模块初始化完成。`);
         }
         catch (err) {

@@ -24,7 +24,7 @@
         </div>
         <div class="smry-tip-inline">
             <i class="fa-solid fa-circle-info"></i>
-            留空默认总结全部楼层。仅作为指令提示注入，不影响 AI 上下文。
+            留空默认总结全部楼层。开始生成前会在 SillyTavern 发送链路里只保留所选楼层。
         </div>
     </div>
 
@@ -79,11 +79,6 @@
             </label>
 
             <label class="smry-launch-item">
-                <input type="radio" name="smry-launch-role" value="user" />
-                <div class="smry-launch-card">👤 User</div>
-            </label>
-
-            <label class="smry-launch-item">
                 <input type="radio" name="smry-launch-role" value="system" />
                 <div class="smry-launch-card">⚙️ System</div>
             </label>
@@ -115,7 +110,7 @@
     <!-- ── 说明框 ─────────────────────────────────────────────────── -->
     <div class="smry-tip-box">
         <i class="fa-solid fa-circle-info"></i>
-        提示词静默注入，生成结束后自动清除。User 身份时触发文本以可见消息发送并留在对话中；AI助手 / System 身份同样为静默注入，不留痕迹。
+        提示词与触发文本会在 SillyTavern 环境内静默注入；生成出的总结会同步显示在下方预览区，确认后才会写入世界书。
     </div>
 
     <div class="smry-divider"></div>
@@ -126,64 +121,87 @@
             <span class="smry-section-label">
                 <i class="fa-solid fa-book"></i> 保存到世界书
             </span>
-            <label class="smry-toggle">
-                <input type="checkbox" id="smry-wi-enabled" />
-                <span class="smry-toggle-track"></span>
-                <span class="smry-toggle-txt">自动保存</span>
-            </label>
         </div>
 
-        <div id="smry-wi-body">
+        <div id="smry-wi-body" class="smry-wi-panel">
 
-            <!-- 世界书名 -->
-            <div class="smry-wi-row">
-                <label class="smry-wi-label">世界书</label>
-                <input
-                    type="text"
-                    id="smry-wi-bookname"
-                    class="smry-wi-input"
-                    placeholder="留空则自动检测..."
-                />
-                <button
-                    class="smry-icon-btn"
-                    onclick="document.dispatchEvent(new CustomEvent('Summary_detectWorldBook'))"
-                    title="自动检测当前角色绑定的世界书"
-                ><i class="fa-solid fa-magnifying-glass"></i></button>
+            <div class="smry-wi-pair-row">
+                <div class="smry-wi-field">
+                    <label class="smry-wi-label" for="smry-wi-bookname">世界书</label>
+                    <div class="smry-wi-input-wrap">
+                        <input
+                            type="text"
+                            id="smry-wi-bookname"
+                            class="smry-wi-input"
+                            placeholder="留空则自动检测..."
+                        />
+                        <button
+                            class="smry-icon-btn smry-icon-btn--square"
+                            onclick="document.dispatchEvent(new CustomEvent('Summary_detectWorldBook'))"
+                            title="自动检测当前角色绑定的世界书"
+                        ><i class="fa-solid fa-magnifying-glass"></i></button>
+                    </div>
+                </div>
+
+                <div class="smry-wi-field">
+                    <label class="smry-wi-label" for="smry-wi-entryname">条目名</label>
+                    <input
+                        type="text"
+                        id="smry-wi-entryname"
+                        class="smry-wi-input"
+                        value="灵魂典藏馆"
+                        placeholder="灵魂典藏馆"
+                    />
+                </div>
             </div>
 
-            <!-- 条目名 -->
-            <div class="smry-wi-row">
-                <label class="smry-wi-label">条目名</label>
-                <input
-                    type="text"
-                    id="smry-wi-entryname"
-                    class="smry-wi-input"
-                    value="灵魂典藏馆"
-                    placeholder="灵魂典藏馆"
-                />
-            </div>
-
-            <!-- 写入模式 + 提取选项 -->
-            <div class="smry-wi-opts-row">
-                <label class="smry-wi-radio">
-                    <input type="radio" name="smry-wi-mode" value="overwrite" />
-                    <span>覆盖</span>
-                </label>
-                <label class="smry-wi-radio">
-                    <input type="radio" name="smry-wi-mode" value="append" />
-                    <span>追加</span>
-                </label>
-                <label class="smry-wi-check">
+            <div class="smry-wi-control-row">
+                <div class="smry-wi-mode-group">
+                    <label class="smry-wi-radio">
+                        <input type="radio" name="smry-wi-mode" value="overwrite" />
+                        <span>覆盖</span>
+                    </label>
+                    <label class="smry-wi-radio">
+                        <input type="radio" name="smry-wi-mode" value="append" />
+                        <span>追加</span>
+                    </label>
+                </div>
+                <label class="smry-wi-check smry-wi-check--compact">
                     <input type="checkbox" id="smry-wi-extract" checked />
-                    <span>自动清理 &lt;thinking&gt;</span>
+                    <span>自动清理思维链</span>
                 </label>
+            </div>
+
+            <div class="smry-wi-control-row smry-wi-control-row--tight">
+                <div class="smry-cleanup-config smry-cleanup-config--compact">
+                    <label class="smry-wi-label smry-wi-label--inline" for="smry-wi-extract-mode">清理标签</label>
+                    <select id="smry-wi-extract-mode" class="smry-select smry-select--compact">
+                        <option value="thinking" selected>&lt;thinking&gt;</option>
+                        <option value="think">&lt;think&gt;</option>
+                        <option value="custom">其他</option>
+                    </select>
+                </div>
+                <label class="smry-wi-check smry-wi-check--compact smry-wi-check--left">
+                    <input type="checkbox" id="smry-hide-source" checked />
+                    <span>写入后隐藏原楼层</span>
+                </label>
+            </div>
+
+            <div class="smry-wi-custom-row">
+                <input
+                    type="text"
+                    id="smry-wi-extract-custom"
+                    class="smry-wi-input smry-wi-input--compact"
+                    placeholder="自定义标签名，多个用逗号分隔"
+                    style="display:none"
+                />
             </div>
 
             <!-- 手动保存 -->
             <button
                 class="smry-wi-save-btn"
                 onclick="document.dispatchEvent(new CustomEvent('Summary_saveToWI'))"
-                title="将最后一条 AI 回复保存到世界书条目"
+                title="将当前预览或最后一条 AI 回复保存到世界书条目"
             >
                 <i class="fa-solid fa-book-open"></i> 手动保存回复
             </button>
@@ -191,12 +209,49 @@
             <div class="smry-tip-inline" style="margin-top:5px">
                 <i class="fa-solid fa-circle-info"></i>
                 <div>
-                    <div>打开「自动保存」后，生成的总结将自动写入世界书条目，无需手动操作。</div>
-                    <div style="margin-top:4px;">点击「手动保存回复」可将最新一条 AI 回复存入世界书，适用于：补存总结/用其他方式生成的总结/任意需要存档的非总结文本。</div>
-                    <div style="margin-top:4px;">新建世界书条目默认蓝灯常驻，如需修改请手动调整。</div>
+                    <div>点击「确认写入世界书」后，会按你当前的覆盖/追加、世界书、条目名设置写入。</div>
+                    <div style="margin-top:4px;">点击「手动保存回复」可将当前预览或最新一条 AI 回复存入世界书，适用于补存总结或保存其他文本。</div>
+                    <div style="margin-top:4px;">新建世界书条目默认 系统@D9999 + 蓝灯常驻，如需修改请手动调整。</div>
                 </div>
             </div>
 
+        </div>
+    </div>
+
+    <div class="smry-divider"></div>
+
+    <div class="smry-section">
+        <div class="smry-section-hd">
+            <span class="smry-section-label">
+                <i class="fa-solid fa-window-restore"></i> 本次总结预览
+            </span>
+            <span id="smry-preview-status" class="smry-preview-status">待生成</span>
+        </div>
+
+        <textarea
+            id="smry-preview"
+            class="smry-textarea smry-preview-textarea"
+            rows="10"
+            placeholder="开始总结后，这里会同步显示将写入世界书的内容。"
+            readonly
+        ></textarea>
+
+        <div class="smry-preview-actions">
+            <button
+                class="smry-icon-btn smry-icon-btn--save smry-preview-btn"
+                onclick="document.dispatchEvent(new CustomEvent('Summary_confirmPreview'))"
+                title="确认当前预览并写入世界书"
+            ><i class="fa-solid fa-check"></i> 确认写入世界书</button>
+            <button
+                class="smry-icon-btn smry-preview-btn"
+                onclick="document.dispatchEvent(new CustomEvent('Summary_reroll'))"
+                title="删除本次总结并重新生成"
+            ><i class="fa-solid fa-rotate-right"></i> 重ROLL</button>
+            <button
+                class="smry-icon-btn smry-icon-btn--del smry-preview-btn"
+                onclick="document.dispatchEvent(new CustomEvent('Summary_clearPreview'))"
+                title="清空当前预览"
+            ><i class="fa-solid fa-eraser"></i> 清空预览</button>
         </div>
     </div>
 
@@ -262,6 +317,10 @@
     min-width: 0;
 }
 
+.smry-select--compact {
+    flex: 0 0 170px;
+}
+
 .smry-input-group label {
     font-size: 11px;
     font-weight: bold;
@@ -280,6 +339,10 @@
     width: 100%;
     box-sizing: border-box;
     transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.smry-wi-input--compact {
+    min-width: 0;
 }
 
 .smry-input-group input:focus {
@@ -349,6 +412,73 @@
     border-color: var(--SmartThemeQuoteColor, #3498db);
 }
 
+/* ── 世界书区紧凑布局 ─────────────────────────────────────────── */
+.smry-wi-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.smry-wi-pair-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px;
+}
+
+.smry-wi-field {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.smry-wi-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+}
+
+.smry-wi-input-wrap .smry-wi-input {
+    flex: 1;
+}
+
+.smry-wi-control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+}
+
+.smry-wi-control-row--tight {
+    gap: 6px;
+}
+
+.smry-wi-mode-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
+    min-width: 0;
+}
+
+.smry-cleanup-config--compact {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.smry-wi-custom-row {
+    display: flex;
+    min-width: 0;
+}
+
+.smry-wi-custom-row .smry-wi-input {
+    width: 100%;
+}
+
 /* ── 图标按钮 ─────────────────────────────────────────────────── */
 .smry-icon-btn {
     padding: 5px 8px;
@@ -361,6 +491,15 @@
     white-space: nowrap;
     flex-shrink: 0;
     transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+
+.smry-icon-btn--square {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .smry-icon-btn:hover {
@@ -386,12 +525,14 @@
     flex-direction: row;
     gap: 5px;
     margin-bottom: 8px;
+    flex-wrap: nowrap;
 }
 
 .smry-launch-item {
     flex: 1;
     cursor: pointer;
     user-select: none;
+    min-width: 0;
 }
 
 .smry-launch-item input[type="radio"] {
@@ -530,6 +671,10 @@
     width: 38px;
 }
 
+.smry-wi-label--inline {
+    width: auto;
+}
+
 .smry-wi-input {
     flex: 1;
     padding: 5px 8px;
@@ -556,6 +701,19 @@
     flex-wrap: wrap;
 }
 
+.smry-wi-opts-row--stack {
+    align-items: stretch;
+    gap: 8px;
+}
+
+.smry-cleanup-config {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 100%;
+    min-width: 0;
+}
+
 .smry-wi-radio {
     display: flex;
     align-items: center;
@@ -578,6 +736,10 @@
     margin-left: auto;
 }
 
+.smry-wi-check--left {
+    margin-left: 0;
+}
+
 .smry-wi-save-btn {
     display: block;
     width: 100%;
@@ -595,6 +757,28 @@
     background: rgba(39, 174, 96, 0.18);
     border-color: #27ae60;
     color: #2ecc71;
+}
+
+.smry-preview-status {
+    font-size: 11px;
+    color: var(--SmartThemeTextColor);
+    opacity: 0.7;
+}
+
+.smry-preview-textarea {
+    margin-bottom: 8px;
+    background: rgba(155, 89, 182, 0.05);
+}
+
+.smry-preview-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.smry-preview-btn {
+    flex: 1 1 140px;
+    text-align: center;
 }
 
 /* ── 执行按钮 ─────────────────────────────────────────────────── */
@@ -664,6 +848,9 @@
         display: none;
     }
     .smry-preset-row {
+        flex-wrap: wrap;
+    }
+    .smry-cleanup-config {
         flex-wrap: wrap;
     }
 }
