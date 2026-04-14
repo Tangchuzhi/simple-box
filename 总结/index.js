@@ -49,13 +49,12 @@
     const INJECT_KEY_AB = 'smry-context'; // A+B 内容
     const INJECT_KEY_LAUNCH = 'smry-launch'; // C 触发
     let presets_a = [];
-    let suppressChatFilter = false;
     let summarySession = {
         active: false,
         start: 0,
         end: 0,
+        filteredLength: 0,
         fullChat: null,
-        selectedChat: [],
         generatedMessageId: null,
         pendingPreview: false,
     };
@@ -555,41 +554,39 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     }
     function applyChatRangeFilter(start, end) {
         const ctx = getCtx();
-        if (!Array.isArray(ctx.chat) || summarySession.active)
+        if (!Array.isArray(ctx.chat))
             return;
+        if (summarySession.active && summarySession.fullChat) {
+            ctx.chat.splice(0, ctx.chat.length, ...summarySession.fullChat);
+            summarySession.active = false;
+        }
         const snapshot = ctx.chat.slice();
         const filtered = filterChatByRange(snapshot, start, end);
         summarySession = {
             active: true,
             start,
             end,
+            filteredLength: filtered.length,
             fullChat: snapshot,
-            selectedChat: filtered.slice(),
             generatedMessageId: null,
             pendingPreview: true,
         };
-        suppressChatFilter = true;
         ctx.chat.splice(0, ctx.chat.length, ...filtered);
-        suppressChatFilter = false;
-        console.log(`${LOG_PREFIX} 已临时过滤聊天楼层 ${start}~${end}，原始消息数=${snapshot.length}，保留=${filtered.length}`);
+        console.log(`${LOG_PREFIX} 已临时过滤聊天楼层 ${start}~${end}，原始=${snapshot.length}，保留=${filtered.length}`);
     }
     function restoreChatAfterSummary() {
         const ctx = getCtx();
         if (!summarySession.active || !summarySession.fullChat || !Array.isArray(ctx.chat))
             return;
-        const generatedMessages = ctx.chat.slice(summarySession.fullChat.length > ctx.chat.length ? ctx.chat.length : summarySession.fullChat.length);
-        const restoredChat = summarySession.fullChat.slice();
+        const generatedMessages = ctx.chat.slice(summarySession.filteredLength);
+        const restoredChat = [...summarySession.fullChat, ...generatedMessages];
+        ctx.chat.splice(0, ctx.chat.length, ...restoredChat);
         if (generatedMessages.length > 0) {
-            restoredChat.push(...generatedMessages);
             summarySession.generatedMessageId = restoredChat.length - 1;
         }
-        suppressChatFilter = true;
-        ctx.chat.splice(0, ctx.chat.length, ...restoredChat);
-        suppressChatFilter = false;
         summarySession.fullChat = null;
-        summarySession.selectedChat = [];
         summarySession.active = false;
-        console.log(`${LOG_PREFIX} 已恢复原始聊天数组`);
+        console.log(`${LOG_PREFIX} 已恢复原始聊天数组，新增消息=${generatedMessages.length}`);
     }
     function getLatestAiMessageInfo() {
         var _a;
@@ -664,44 +661,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         setPreviewStatus('待生成');
         summarySession.generatedMessageId = null;
     }
-    function getChatMessageComparableText(message) {
-        var _a, _b;
-        const raw = (_b = (_a = message === null || message === void 0 ? void 0 : message.mes) !== null && _a !== void 0 ? _a : message === null || message === void 0 ? void 0 : message.content) !== null && _b !== void 0 ? _b : '';
-        if (Array.isArray(raw)) {
-            return raw
-                .map((part) => { var _a; return typeof part === 'string' ? part : ((_a = part === null || part === void 0 ? void 0 : part.text) !== null && _a !== void 0 ? _a : ''); })
-                .join('\n')
-                .trim();
-        }
-        return String(raw !== null && raw !== void 0 ? raw : '').trim();
-    }
-    function handleChatCompletionPromptReady(eventData) {
-        var _a;
-        if (!summarySession.active || suppressChatFilter || !Array.isArray(eventData.chat))
-            return;
-        const allowedCounts = new Map();
-        for (const item of summarySession.selectedChat) {
-            const text = getChatMessageComparableText(item);
-            if (!text)
-                continue;
-            allowedCounts.set(text, ((_a = allowedCounts.get(text)) !== null && _a !== void 0 ? _a : 0) + 1);
-        }
-        eventData.chat = eventData.chat.filter((item) => {
-            var _a, _b;
-            const role = String((_a = item === null || item === void 0 ? void 0 : item.role) !== null && _a !== void 0 ? _a : '').toLowerCase();
-            if (role === 'system' || role === 'tool')
-                return true;
-            const text = getChatMessageComparableText(item);
-            if (!text)
-                return false;
-            const remaining = (_b = allowedCounts.get(text)) !== null && _b !== void 0 ? _b : 0;
-            if (remaining <= 0)
-                return false;
-            allowedCounts.set(text, remaining - 1);
-            return true;
-        });
-        console.log(`${LOG_PREFIX} 已过滤实际发送给模型的聊天消息，保留 ${eventData.chat.length} 条 prompt 消息`);
-    }
     function bindSummaryEvents() {
         var _a;
         const ctx = getCtx();
@@ -709,21 +668,36 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         const eventTypes = (_a = ctx.eventTypes) !== null && _a !== void 0 ? _a : ctx.event_types;
         if (!eventSource || !eventTypes)
             return;
-        eventSource.on(eventTypes.CHAT_COMPLETION_PROMPT_READY, handleChatCompletionPromptReady);
+        eventSource.on(eventTypes.STREAM_TOKEN_RECEIVED, (text) => {
+            if (!summarySession.pendingPreview || typeof text !== 'string')
+                return;
+            const el = document.getElementById('smry-preview');
+            if (el) {
+                el.removeAttribute('readonly');
+                el.value = cleanAiResponse(text);
+                setPreviewStatus('生成中...');
+            }
+        });
         eventSource.on(eventTypes.GENERATION_ENDED, async () => {
             if (!summarySession.pendingPreview)
                 return;
-            await delay(150);
+            summarySession.pendingPreview = false;
+            await delay(200);
             restoreChatAfterSummary();
             updatePreviewFromLatestMessage();
-            summarySession.pendingPreview = false;
+            const el = document.getElementById('smry-preview');
+            if (el)
+                el.setAttribute('readonly', '');
         });
         eventSource.on(eventTypes.GENERATION_STOPPED, () => {
             if (!summarySession.pendingPreview)
                 return;
+            summarySession.pendingPreview = false;
             restoreChatAfterSummary();
             setPreviewStatus('生成已停止');
-            summarySession.pendingPreview = false;
+            const el = document.getElementById('smry-preview');
+            if (el)
+                el.setAttribute('readonly', '');
         });
     }
     // ── 核心执行 ──────────────────────────────────────────────────────────────

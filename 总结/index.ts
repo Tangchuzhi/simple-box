@@ -68,20 +68,19 @@
         active: boolean;
         start: number;
         end: number;
+        filteredLength: number;
         fullChat: any[] | null;
-        selectedChat: any[];
         generatedMessageId: number | null;
         pendingPreview: boolean;
     }
 
     let presets_a: SummaryPreset[] = [];
-    let suppressChatFilter = false;
     let summarySession: SummarySession = {
         active: false,
         start: 0,
         end: 0,
+        filteredLength: 0,
         fullChat: null,
-        selectedChat: [],
         generatedMessageId: null,
         pendingPreview: false,
     };
@@ -610,40 +609,38 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 
     function applyChatRangeFilter(start: number, end: number): void {
         const ctx = getCtx();
-        if (!Array.isArray(ctx.chat) || summarySession.active) return;
+        if (!Array.isArray(ctx.chat)) return;
+        if (summarySession.active && summarySession.fullChat) {
+            ctx.chat.splice(0, ctx.chat.length, ...summarySession.fullChat);
+            summarySession.active = false;
+        }
         const snapshot = ctx.chat.slice();
         const filtered = filterChatByRange(snapshot, start, end);
         summarySession = {
             active: true,
             start,
             end,
+            filteredLength: filtered.length,
             fullChat: snapshot,
-            selectedChat: filtered.slice(),
             generatedMessageId: null,
             pendingPreview: true,
         };
-        suppressChatFilter = true;
         ctx.chat.splice(0, ctx.chat.length, ...filtered);
-        suppressChatFilter = false;
-        console.log(`${LOG_PREFIX} 已临时过滤聊天楼层 ${start}~${end}，原始消息数=${snapshot.length}，保留=${filtered.length}`);
+        console.log(`${LOG_PREFIX} 已临时过滤聊天楼层 ${start}~${end}，原始=${snapshot.length}，保留=${filtered.length}`);
     }
 
     function restoreChatAfterSummary(): void {
         const ctx = getCtx();
         if (!summarySession.active || !summarySession.fullChat || !Array.isArray(ctx.chat)) return;
-        const generatedMessages = ctx.chat.slice(summarySession.fullChat.length > ctx.chat.length ? ctx.chat.length : summarySession.fullChat.length);
-        const restoredChat = summarySession.fullChat.slice();
+        const generatedMessages = ctx.chat.slice(summarySession.filteredLength);
+        const restoredChat = [...summarySession.fullChat, ...generatedMessages];
+        ctx.chat.splice(0, ctx.chat.length, ...restoredChat);
         if (generatedMessages.length > 0) {
-            restoredChat.push(...generatedMessages);
             summarySession.generatedMessageId = restoredChat.length - 1;
         }
-        suppressChatFilter = true;
-        ctx.chat.splice(0, ctx.chat.length, ...restoredChat);
-        suppressChatFilter = false;
         summarySession.fullChat = null;
-        summarySession.selectedChat = [];
         summarySession.active = false;
-        console.log(`${LOG_PREFIX} 已恢复原始聊天数组`);
+        console.log(`${LOG_PREFIX} 已恢复原始聊天数组，新增消息=${generatedMessages.length}`);
     }
 
     function getLatestAiMessageInfo(): { id: number | null; text: string } {
@@ -723,62 +720,39 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         summarySession.generatedMessageId = null;
     }
 
-    function getChatMessageComparableText(message: any): string {
-        const raw = message?.mes ?? message?.content ?? '';
-        if (Array.isArray(raw)) {
-            return raw
-                .map((part: any) => typeof part === 'string' ? part : (part?.text ?? ''))
-                .join('\n')
-                .trim();
-        }
-        return String(raw ?? '').trim();
-    }
-
-    function handleChatCompletionPromptReady(eventData: { chat?: any[] }): void {
-        if (!summarySession.active || suppressChatFilter || !Array.isArray(eventData.chat)) return;
-        const allowedCounts = new Map<string, number>();
-        for (const item of summarySession.selectedChat) {
-            const text = getChatMessageComparableText(item);
-            if (!text) continue;
-            allowedCounts.set(text, (allowedCounts.get(text) ?? 0) + 1);
-        }
-
-        eventData.chat = eventData.chat.filter((item: any) => {
-            const role = String(item?.role ?? '').toLowerCase();
-            if (role === 'system' || role === 'tool') return true;
-
-            const text = getChatMessageComparableText(item);
-            if (!text) return false;
-
-            const remaining = allowedCounts.get(text) ?? 0;
-            if (remaining <= 0) return false;
-
-            allowedCounts.set(text, remaining - 1);
-            return true;
-        });
-
-        console.log(`${LOG_PREFIX} 已过滤实际发送给模型的聊天消息，保留 ${eventData.chat.length} 条 prompt 消息`);
-    }
-
     function bindSummaryEvents(): void {
         const ctx = getCtx();
         const eventSource = ctx.eventSource;
         const eventTypes = ctx.eventTypes ?? ctx.event_types;
         if (!eventSource || !eventTypes) return;
 
-        eventSource.on(eventTypes.CHAT_COMPLETION_PROMPT_READY, handleChatCompletionPromptReady);
+        eventSource.on(eventTypes.STREAM_TOKEN_RECEIVED, (text: string) => {
+            if (!summarySession.pendingPreview || typeof text !== 'string') return;
+            const el = document.getElementById('smry-preview') as HTMLTextAreaElement | null;
+            if (el) {
+                el.removeAttribute('readonly');
+                el.value = cleanAiResponse(text);
+                setPreviewStatus('生成中...');
+            }
+        });
+
         eventSource.on(eventTypes.GENERATION_ENDED, async () => {
             if (!summarySession.pendingPreview) return;
-            await delay(150);
+            summarySession.pendingPreview = false;
+            await delay(200);
             restoreChatAfterSummary();
             updatePreviewFromLatestMessage();
-            summarySession.pendingPreview = false;
+            const el = document.getElementById('smry-preview') as HTMLTextAreaElement | null;
+            if (el) el.setAttribute('readonly', '');
         });
+
         eventSource.on(eventTypes.GENERATION_STOPPED, () => {
             if (!summarySession.pendingPreview) return;
+            summarySession.pendingPreview = false;
             restoreChatAfterSummary();
             setPreviewStatus('生成已停止');
-            summarySession.pendingPreview = false;
+            const el = document.getElementById('smry-preview') as HTMLTextAreaElement | null;
+            if (el) el.setAttribute('readonly', '');
         });
     }
 
