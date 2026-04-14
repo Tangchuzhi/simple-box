@@ -23,11 +23,29 @@ declare interface STChatMessage {
     [key: string]: any;
 }
 
+declare interface STEventSource {
+    once(event: string, callback: () => void): void;
+    on(event: string, callback: (...args: any[]) => void): void;
+    emit(event: string, ...args: any[]): void;
+}
+
 declare interface STContext {
     characters: STCharacter[];
     chat: STChat;
     name1: string;
     name2: string;
+    /** Sets an extension prompt injection into the AI context */
+    setExtensionPrompt(key: string, value: string, position: number, depth: number, scan?: boolean, role?: number): void;
+    /** All active extension prompts */
+    extensionPrompts: { [key: string]: any };
+    /** ST event emitter for listening to generation events */
+    eventSource: STEventSource;
+    /** Event type name constants (e.g. GENERATION_ENDED, GENERATION_STOPPED) */
+    eventTypes: { [key: string]: string };
+    /** @deprecated Use eventTypes */
+    event_types: { [key: string]: string };
+    /** Execute STScript slash commands programmatically */
+    executeSlashCommandsWithOptions(command: string, options?: any): Promise<any>;
     [key: string]: any;
 }
 
