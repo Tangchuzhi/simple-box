@@ -48,6 +48,7 @@
     // ── 注入 key 前缀（与 ST 内部 SCRIPT_PROMPT_KEY 匹配） ───────────────────
     const INJECT_KEY_AB = 'smry-context'; // A+B 内容
     const INJECT_KEY_LAUNCH = 'smry-launch'; // C 触发
+    const INJECT_KEY_USER = 'smry-user-pad'; // assistant 模式前置 user 占位
     let presets_a = [];
     let summarySession = {
         active: false,
@@ -556,37 +557,33 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         const ctx = getCtx();
         if (!Array.isArray(ctx.chat))
             return;
-        if (summarySession.active && summarySession.fullChat) {
-            ctx.chat.splice(0, ctx.chat.length, ...summarySession.fullChat);
-            summarySession.active = false;
-        }
         const snapshot = ctx.chat.slice();
-        const filtered = filterChatByRange(snapshot, start, end);
         summarySession = {
             active: true,
             start,
             end,
-            filteredLength: filtered.length,
+            filteredLength: Math.max(0, end - start + 1),
             fullChat: snapshot,
             generatedMessageId: null,
             pendingPreview: true,
         };
-        ctx.chat.splice(0, ctx.chat.length, ...filtered);
-        console.log(`${LOG_PREFIX} 已临时过滤聊天楼层 ${start}~${end}，原始=${snapshot.length}，保留=${filtered.length}`);
+        console.log(`${LOG_PREFIX} 已注册楼层过滤 ${start}~${end}，总楼层=${snapshot.length}`);
     }
     function restoreChatAfterSummary() {
-        const ctx = getCtx();
-        if (!summarySession.active || !summarySession.fullChat || !Array.isArray(ctx.chat))
+        var _a, _b;
+        if (!summarySession.active)
             return;
-        const generatedMessages = ctx.chat.slice(summarySession.filteredLength);
-        const restoredChat = [...summarySession.fullChat, ...generatedMessages];
-        ctx.chat.splice(0, ctx.chat.length, ...restoredChat);
-        if (generatedMessages.length > 0) {
-            summarySession.generatedMessageId = restoredChat.length - 1;
+        const ctx = getCtx();
+        const chat = Array.isArray(ctx.chat) ? ctx.chat : [];
+        for (let i = chat.length - 1; i >= 0; i--) {
+            if (!((_a = chat[i]) === null || _a === void 0 ? void 0 : _a.is_user) && !((_b = chat[i]) === null || _b === void 0 ? void 0 : _b.is_system)) {
+                summarySession.generatedMessageId = i;
+                break;
+            }
         }
         summarySession.fullChat = null;
         summarySession.active = false;
-        console.log(`${LOG_PREFIX} 已恢复原始聊天数组，新增消息=${generatedMessages.length}`);
+        console.log(`${LOG_PREFIX} 总结会话结束，生成消息ID=${summarySession.generatedMessageId}`);
     }
     function getLatestAiMessageInfo() {
         var _a;
@@ -661,6 +658,26 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         setPreviewStatus('待生成');
         summarySession.generatedMessageId = null;
     }
+    function handleChatCompletionPromptReady(eventData) {
+        if (!summarySession.active || !Array.isArray(eventData.chat))
+            return;
+        const { start, end, fullChat } = summarySession;
+        if (!fullChat)
+            return;
+        let floorIndex = 0;
+        eventData.chat = eventData.chat.filter((msg) => {
+            var _a;
+            const role = String((_a = msg === null || msg === void 0 ? void 0 : msg.role) !== null && _a !== void 0 ? _a : '').toLowerCase();
+            if (role === 'system')
+                return true;
+            const idx = floorIndex++;
+            if (idx < fullChat.length) {
+                return idx >= start && idx <= end;
+            }
+            return true;
+        });
+        console.log(`${LOG_PREFIX} 已过滤提示词楼层 ${start}~${end}`);
+    }
     function bindSummaryEvents() {
         var _a;
         const ctx = getCtx();
@@ -668,6 +685,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         const eventTypes = (_a = ctx.eventTypes) !== null && _a !== void 0 ? _a : ctx.event_types;
         if (!eventSource || !eventTypes)
             return;
+        eventSource.on(eventTypes.CHAT_COMPLETION_PROMPT_READY, handleChatCompletionPromptReady);
         eventSource.on(eventTypes.STREAM_TOKEN_RECEIVED, (text) => {
             if (!summarySession.pendingPreview || typeof text !== 'string')
                 return;
@@ -734,6 +752,9 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         await delay(200);
         // 第二步：按 C 选项触发
         const roleNum = launchRole === 'assistant' ? ROLE_ASSISTANT : ROLE_SYSTEM;
+        if (launchRole === 'assistant') {
+            injectChatTrigger(INJECT_KEY_USER, '（总结任务触发）', ROLE_USER, true);
+        }
         injectChatTrigger(INJECT_KEY_LAUNCH, triggerText, roleNum, true);
         await delay(200);
         await triggerGeneration();

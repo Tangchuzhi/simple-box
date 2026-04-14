@@ -55,6 +55,7 @@
     // ── 注入 key 前缀（与 ST 内部 SCRIPT_PROMPT_KEY 匹配） ───────────────────
     const INJECT_KEY_AB     = 'smry-context';   // A+B 内容
     const INJECT_KEY_LAUNCH = 'smry-launch';    // C 触发
+    const INJECT_KEY_USER   = 'smry-user-pad';  // assistant 模式前置 user 占位
 
     interface SummaryPreset {
         name: string;
@@ -610,37 +611,32 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     function applyChatRangeFilter(start: number, end: number): void {
         const ctx = getCtx();
         if (!Array.isArray(ctx.chat)) return;
-        if (summarySession.active && summarySession.fullChat) {
-            ctx.chat.splice(0, ctx.chat.length, ...summarySession.fullChat);
-            summarySession.active = false;
-        }
         const snapshot = ctx.chat.slice();
-        const filtered = filterChatByRange(snapshot, start, end);
         summarySession = {
             active: true,
             start,
             end,
-            filteredLength: filtered.length,
+            filteredLength: Math.max(0, end - start + 1),
             fullChat: snapshot,
             generatedMessageId: null,
             pendingPreview: true,
         };
-        ctx.chat.splice(0, ctx.chat.length, ...filtered);
-        console.log(`${LOG_PREFIX} 已临时过滤聊天楼层 ${start}~${end}，原始=${snapshot.length}，保留=${filtered.length}`);
+        console.log(`${LOG_PREFIX} 已注册楼层过滤 ${start}~${end}，总楼层=${snapshot.length}`);
     }
 
     function restoreChatAfterSummary(): void {
+        if (!summarySession.active) return;
         const ctx = getCtx();
-        if (!summarySession.active || !summarySession.fullChat || !Array.isArray(ctx.chat)) return;
-        const generatedMessages = ctx.chat.slice(summarySession.filteredLength);
-        const restoredChat = [...summarySession.fullChat, ...generatedMessages];
-        ctx.chat.splice(0, ctx.chat.length, ...restoredChat);
-        if (generatedMessages.length > 0) {
-            summarySession.generatedMessageId = restoredChat.length - 1;
+        const chat: any[] = Array.isArray(ctx.chat) ? ctx.chat : [];
+        for (let i = chat.length - 1; i >= 0; i--) {
+            if (!chat[i]?.is_user && !chat[i]?.is_system) {
+                summarySession.generatedMessageId = i;
+                break;
+            }
         }
         summarySession.fullChat = null;
         summarySession.active = false;
-        console.log(`${LOG_PREFIX} 已恢复原始聊天数组，新增消息=${generatedMessages.length}`);
+        console.log(`${LOG_PREFIX} 总结会话结束，生成消息ID=${summarySession.generatedMessageId}`);
     }
 
     function getLatestAiMessageInfo(): { id: number | null; text: string } {
@@ -720,11 +716,30 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         summarySession.generatedMessageId = null;
     }
 
+    function handleChatCompletionPromptReady(eventData: { chat?: any[] }): void {
+        if (!summarySession.active || !Array.isArray(eventData.chat)) return;
+        const { start, end, fullChat } = summarySession;
+        if (!fullChat) return;
+        let floorIndex = 0;
+        eventData.chat = eventData.chat.filter((msg: any) => {
+            const role = String(msg?.role ?? '').toLowerCase();
+            if (role === 'system') return true;
+            const idx = floorIndex++;
+            if (idx < fullChat.length) {
+                return idx >= start && idx <= end;
+            }
+            return true;
+        });
+        console.log(`${LOG_PREFIX} 已过滤提示词楼层 ${start}~${end}`);
+    }
+
     function bindSummaryEvents(): void {
         const ctx = getCtx();
         const eventSource = ctx.eventSource;
         const eventTypes = ctx.eventTypes ?? ctx.event_types;
         if (!eventSource || !eventTypes) return;
+
+        eventSource.on(eventTypes.CHAT_COMPLETION_PROMPT_READY, handleChatCompletionPromptReady);
 
         eventSource.on(eventTypes.STREAM_TOKEN_RECEIVED, (text: string) => {
             if (!summarySession.pendingPreview || typeof text !== 'string') return;
@@ -800,6 +815,9 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 
         // 第二步：按 C 选项触发
         const roleNum = launchRole === 'assistant' ? ROLE_ASSISTANT : ROLE_SYSTEM;
+        if (launchRole === 'assistant') {
+            injectChatTrigger(INJECT_KEY_USER, '（总结任务触发）', ROLE_USER, true);
+        }
         injectChatTrigger(INJECT_KEY_LAUNCH, triggerText, roleNum, true);
         await delay(200);
         await triggerGeneration();
