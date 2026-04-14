@@ -89,10 +89,24 @@ jQuery(() => {
             <div class="fs-header-row">
                 <span class="fs-version-display">版本: ${extensionVersion}</span>
             </div>
+            <div class="fs-tab-bar">
+                <button class="fs-tab-btn fs-tab-active" data-tab="fs-floor-hide-content">
+                    <i class="fa-solid fa-eye-slash"></i> 隐藏楼层
+                </button>
+                <button class="fs-tab-btn" data-tab="fs-summary-content">
+                    <i class="fa-solid fa-scroll"></i> 总结
+                </button>
+            </div>
             <div class="fs-content-area" id="fs-floor-hide-content">
                 <div style="text-align: center; padding: 20px; color: var(--SmartThemeTextColor); opacity: 0.6;">
                     <i class="fa-solid fa-spinner fa-spin"></i>
                     <p style="margin: 8px 0 0; font-size: 12px;">正在加载隐藏楼层...</p>
+                </div>
+            </div>
+            <div class="fs-content-area" id="fs-summary-content" style="display:none">
+                <div style="text-align: center; padding: 20px; color: var(--SmartThemeTextColor); opacity: 0.6;">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                    <p style="margin: 8px 0 0; font-size: 12px;">正在加载总结...</p>
                 </div>
             </div>
         </div>
@@ -119,6 +133,21 @@ jQuery(() => {
 
         console.log('[简单盒子] 扩展面板已挂载');
 
+        // Tab 切换逻辑
+        document.querySelectorAll<HTMLElement>('.fs-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tabId = btn.getAttribute('data-tab');
+                if (!tabId) return;
+
+                document.querySelectorAll<HTMLElement>('.fs-tab-btn').forEach(b => {
+                    b.classList.toggle('fs-tab-active', b === btn);
+                });
+                document.querySelectorAll<HTMLElement>('.fs-content-area').forEach(area => {
+                    (area as HTMLElement).style.display = area.id === tabId ? '' : 'none';
+                });
+            });
+        });
+
         // 版本读取
         setTimeout(() => {
             loadVersionFromManifest();
@@ -128,6 +157,11 @@ jQuery(() => {
         setTimeout(() => {
             loadFeatureModule('隐藏楼层', 'fs-floor-hide-content');
         }, 500);
+
+        // 加载「总结」功能子模块
+        setTimeout(() => {
+            loadFeatureModule('总结', 'fs-summary-content');
+        }, 700);
 
     }, 2000);
 });

@@ -30,6 +30,39 @@
     letter-spacing: 0.02em;
 }
 
+/* ── Tab 切换栏 ───────────────────────────────────────────── */
+.fs-tab-bar {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 8px;
+}
+
+.fs-tab-btn {
+    flex: 1;
+    padding: 7px 8px;
+    background: var(--SmartThemeChatTintColor, rgba(255, 255, 255, 0.06));
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.15));
+    border-radius: 5px;
+    color: var(--SmartThemeTextColor);
+    font-size: 11px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s, color 0.2s;
+    white-space: nowrap;
+    opacity: 0.7;
+}
+
+.fs-tab-btn.fs-tab-active {
+    border-color: var(--SmartThemeQuoteColor, #007bff);
+    background: rgba(0, 123, 255, 0.1);
+    color: var(--SmartThemeQuoteColor, #007bff);
+    opacity: 1;
+}
+
+.fs-tab-btn:hover:not(.fs-tab-active) {
+    border-color: var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.3));
+    opacity: 0.9;
+}
+
 /* ── 功能内容区域 ─────────────────────────────────────────── */
 .fs-content-area {
     min-height: 120px;

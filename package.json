@@ -5,7 +5,7 @@
     "scripts": {
         "build": "tsc",
         "watch": "tsc --watch",
-        "clean": "node -e \"const fs=require('fs');['index.js','隐藏楼层/index.js'].forEach(f=>{try{fs.unlinkSync(f);console.log('Deleted '+f)}catch(e){}})\""
+        "clean": "node -e \"const fs=require('fs');['index.js','隐藏楼层/index.js','总结/index.js'].forEach(f=>{try{fs.unlinkSync(f);console.log('Deleted '+f)}catch(e){}})\""
     },
     "devDependencies": {
         "typescript": "^5.4.0"
