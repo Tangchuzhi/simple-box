@@ -55,6 +55,7 @@
         start: 0,
         end: 0,
         fullChat: null,
+        selectedChat: [],
         generatedMessageId: null,
         pendingPreview: false,
     };
@@ -563,6 +564,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             start,
             end,
             fullChat: snapshot,
+            selectedChat: filtered.slice(),
             generatedMessageId: null,
             pendingPreview: true,
         };
@@ -585,6 +587,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         ctx.chat.splice(0, ctx.chat.length, ...restoredChat);
         suppressChatFilter = false;
         summarySession.fullChat = null;
+        summarySession.selectedChat = [];
         summarySession.active = false;
         console.log(`${LOG_PREFIX} 已恢复原始聊天数组`);
     }
@@ -661,14 +664,43 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         setPreviewStatus('待生成');
         summarySession.generatedMessageId = null;
     }
+    function getChatMessageComparableText(message) {
+        var _a, _b;
+        const raw = (_b = (_a = message === null || message === void 0 ? void 0 : message.mes) !== null && _a !== void 0 ? _a : message === null || message === void 0 ? void 0 : message.content) !== null && _b !== void 0 ? _b : '';
+        if (Array.isArray(raw)) {
+            return raw
+                .map((part) => { var _a; return typeof part === 'string' ? part : ((_a = part === null || part === void 0 ? void 0 : part.text) !== null && _a !== void 0 ? _a : ''); })
+                .join('\n')
+                .trim();
+        }
+        return String(raw !== null && raw !== void 0 ? raw : '').trim();
+    }
     function handleChatCompletionPromptReady(eventData) {
+        var _a;
         if (!summarySession.active || suppressChatFilter || !Array.isArray(eventData.chat))
             return;
+        const allowedCounts = new Map();
+        for (const item of summarySession.selectedChat) {
+            const text = getChatMessageComparableText(item);
+            if (!text)
+                continue;
+            allowedCounts.set(text, ((_a = allowedCounts.get(text)) !== null && _a !== void 0 ? _a : 0) + 1);
+        }
         eventData.chat = eventData.chat.filter((item) => {
-            var _a;
+            var _a, _b;
             const role = String((_a = item === null || item === void 0 ? void 0 : item.role) !== null && _a !== void 0 ? _a : '').toLowerCase();
-            return role !== 'user' && role !== 'assistant' ? true : true;
+            if (role === 'system' || role === 'tool')
+                return true;
+            const text = getChatMessageComparableText(item);
+            if (!text)
+                return false;
+            const remaining = (_b = allowedCounts.get(text)) !== null && _b !== void 0 ? _b : 0;
+            if (remaining <= 0)
+                return false;
+            allowedCounts.set(text, remaining - 1);
+            return true;
         });
+        console.log(`${LOG_PREFIX} 已过滤实际发送给模型的聊天消息，保留 ${eventData.chat.length} 条 prompt 消息`);
     }
     function bindSummaryEvents() {
         var _a;

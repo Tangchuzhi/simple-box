@@ -69,6 +69,7 @@
         start: number;
         end: number;
         fullChat: any[] | null;
+        selectedChat: any[];
         generatedMessageId: number | null;
         pendingPreview: boolean;
     }
@@ -80,6 +81,7 @@
         start: 0,
         end: 0,
         fullChat: null,
+        selectedChat: [],
         generatedMessageId: null,
         pendingPreview: false,
     };
@@ -616,6 +618,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             start,
             end,
             fullChat: snapshot,
+            selectedChat: filtered.slice(),
             generatedMessageId: null,
             pendingPreview: true,
         };
@@ -638,6 +641,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         ctx.chat.splice(0, ctx.chat.length, ...restoredChat);
         suppressChatFilter = false;
         summarySession.fullChat = null;
+        summarySession.selectedChat = [];
         summarySession.active = false;
         console.log(`${LOG_PREFIX} 已恢复原始聊天数组`);
     }
@@ -719,12 +723,41 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         summarySession.generatedMessageId = null;
     }
 
+    function getChatMessageComparableText(message: any): string {
+        const raw = message?.mes ?? message?.content ?? '';
+        if (Array.isArray(raw)) {
+            return raw
+                .map((part: any) => typeof part === 'string' ? part : (part?.text ?? ''))
+                .join('\n')
+                .trim();
+        }
+        return String(raw ?? '').trim();
+    }
+
     function handleChatCompletionPromptReady(eventData: { chat?: any[] }): void {
         if (!summarySession.active || suppressChatFilter || !Array.isArray(eventData.chat)) return;
+        const allowedCounts = new Map<string, number>();
+        for (const item of summarySession.selectedChat) {
+            const text = getChatMessageComparableText(item);
+            if (!text) continue;
+            allowedCounts.set(text, (allowedCounts.get(text) ?? 0) + 1);
+        }
+
         eventData.chat = eventData.chat.filter((item: any) => {
             const role = String(item?.role ?? '').toLowerCase();
-            return role !== 'user' && role !== 'assistant' ? true : true;
+            if (role === 'system' || role === 'tool') return true;
+
+            const text = getChatMessageComparableText(item);
+            if (!text) return false;
+
+            const remaining = allowedCounts.get(text) ?? 0;
+            if (remaining <= 0) return false;
+
+            allowedCounts.set(text, remaining - 1);
+            return true;
         });
+
+        console.log(`${LOG_PREFIX} 已过滤实际发送给模型的聊天消息，保留 ${eventData.chat.length} 条 prompt 消息`);
     }
 
     function bindSummaryEvents(): void {
