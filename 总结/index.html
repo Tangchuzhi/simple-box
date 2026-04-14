@@ -1,0 +1,670 @@
+<div class="smry-container">
+
+    <h4 class="smry-title">
+        <i class="fa-solid fa-scroll"></i> 总结
+    </h4>
+
+    <!-- ── 楼层范围 ─────────────────────────────────────────────── -->
+    <div class="smry-section">
+        <div class="smry-section-hd">
+            <span class="smry-section-label">
+                <i class="fa-solid fa-layer-group"></i> 楼层范围
+            </span>
+        </div>
+        <div class="smry-floor-row">
+            <div class="smry-input-group">
+                <label for="smry-start-floor">起始楼层</label>
+                <input type="number" id="smry-start-floor" min="0" placeholder="0" />
+            </div>
+            <span class="smry-range-sep">～</span>
+            <div class="smry-input-group">
+                <label for="smry-end-floor">结束楼层</label>
+                <input type="number" id="smry-end-floor" min="0" placeholder="" />
+            </div>
+        </div>
+        <div class="smry-tip-inline">
+            <i class="fa-solid fa-circle-info"></i>
+            留空默认总结全部楼层。仅作为指令提示注入，不影响 AI 上下文。
+        </div>
+    </div>
+
+    <div class="smry-divider"></div>
+
+    <!-- ── A 总结提示词 ──────────────────────────────────────────── -->
+    <div class="smry-section">
+        <div class="smry-section-hd">
+            <span class="smry-section-label">总结提示词</span>
+        </div>
+        <textarea
+            id="smry-prompt-a"
+            class="smry-textarea"
+            rows="5"
+            placeholder="输入总结提示词...&#10;&#10;例：请对以下聊天记录进行详细总结，涵盖主要事件、角色行为和关键细节。使用中文输出。"
+        ></textarea>
+        <div class="smry-preset-row">
+            <select id="smry-presets-a" class="smry-select" title="选择已保存的总结">
+                <option value="">— 选择总结 —</option>
+            </select>
+            <button
+                class="smry-icon-btn"
+                onclick="document.dispatchEvent(new CustomEvent('Summary_applyPresetA'))"
+                title="加载选中的总结到编辑区"
+            ><i class="fa-solid fa-file-import"></i> 加载</button>
+            <button
+                class="smry-icon-btn smry-icon-btn--save"
+                onclick="document.dispatchEvent(new CustomEvent('Summary_savePresetA'))"
+                title="将当前提示词另存为总结"
+            ><i class="fa-solid fa-floppy-disk"></i> 保存总结</button>
+            <button
+                class="smry-icon-btn smry-icon-btn--del"
+                onclick="document.dispatchEvent(new CustomEvent('Summary_deletePresetA'))"
+                title="删除选中的总结"
+            ><i class="fa-solid fa-trash"></i></button>
+        </div>
+    </div>
+
+    <div class="smry-divider"></div>
+
+    <!-- ── C 启动方式 ────────────────────────────────────────────── -->
+    <div class="smry-section">
+        <div class="smry-section-hd">
+            <span class="smry-section-label">启动方式</span>
+        </div>
+
+        <div class="smry-launch-grid">
+
+            <label class="smry-launch-item">
+                <input type="radio" name="smry-launch-role" value="assistant" />
+                <div class="smry-launch-card">🤖 AI助手</div>
+            </label>
+
+            <label class="smry-launch-item">
+                <input type="radio" name="smry-launch-role" value="user" />
+                <div class="smry-launch-card">👤 User</div>
+            </label>
+
+            <label class="smry-launch-item">
+                <input type="radio" name="smry-launch-role" value="system" />
+                <div class="smry-launch-card">⚙️ System</div>
+            </label>
+
+        </div>
+
+        <!-- 触发文本 -->
+        <div class="smry-trigger-row">
+            <label for="smry-trigger-text" class="smry-trigger-label">触发文本</label>
+            <input
+                type="text"
+                id="smry-trigger-text"
+                class="smry-trigger-input"
+                value="角色扮演暂停、剧情推进暂停，开始总结"
+                placeholder="角色扮演暂停、剧情推进暂停，开始总结"
+            />
+        </div>
+    </div>
+
+    <!-- ── 执行按钮 ───────────────────────────────────────────────── -->
+    <button
+        class="smry-execute-btn"
+        onclick="document.dispatchEvent(new CustomEvent('Summary_execute'))"
+        title="注入提示词并触发总结生成"
+    >
+        <i class="fa-solid fa-play"></i> 开始总结
+    </button>
+
+    <!-- ── 说明框 ─────────────────────────────────────────────────── -->
+    <div class="smry-tip-box">
+        <i class="fa-solid fa-circle-info"></i>
+        提示词静默注入，生成结束后自动清除。User 身份时触发文本以可见消息发送并留在对话中；AI助手 / System 身份同样为静默注入，不留痕迹。
+    </div>
+
+    <div class="smry-divider"></div>
+
+    <!-- ── 保存到世界书 ──────────────────────────────────────────── -->
+    <div class="smry-section">
+        <div class="smry-section-hd">
+            <span class="smry-section-label">
+                <i class="fa-solid fa-book"></i> 保存到世界书
+            </span>
+            <label class="smry-toggle">
+                <input type="checkbox" id="smry-wi-enabled" />
+                <span class="smry-toggle-track"></span>
+                <span class="smry-toggle-txt">自动保存</span>
+            </label>
+        </div>
+
+        <div id="smry-wi-body">
+
+            <!-- 世界书名 -->
+            <div class="smry-wi-row">
+                <label class="smry-wi-label">世界书</label>
+                <input
+                    type="text"
+                    id="smry-wi-bookname"
+                    class="smry-wi-input"
+                    placeholder="留空则自动检测..."
+                />
+                <button
+                    class="smry-icon-btn"
+                    onclick="document.dispatchEvent(new CustomEvent('Summary_detectWorldBook'))"
+                    title="自动检测当前角色绑定的世界书"
+                ><i class="fa-solid fa-magnifying-glass"></i></button>
+            </div>
+
+            <!-- 条目名 -->
+            <div class="smry-wi-row">
+                <label class="smry-wi-label">条目名</label>
+                <input
+                    type="text"
+                    id="smry-wi-entryname"
+                    class="smry-wi-input"
+                    value="灵魂典藏馆"
+                    placeholder="灵魂典藏馆"
+                />
+            </div>
+
+            <!-- 写入模式 + 提取选项 -->
+            <div class="smry-wi-opts-row">
+                <label class="smry-wi-radio">
+                    <input type="radio" name="smry-wi-mode" value="overwrite" />
+                    <span>覆盖</span>
+                </label>
+                <label class="smry-wi-radio">
+                    <input type="radio" name="smry-wi-mode" value="append" />
+                    <span>追加</span>
+                </label>
+                <label class="smry-wi-check">
+                    <input type="checkbox" id="smry-wi-extract" checked />
+                    <span>自动清理 &lt;thinking&gt;</span>
+                </label>
+            </div>
+
+            <!-- 手动保存 -->
+            <button
+                class="smry-wi-save-btn"
+                onclick="document.dispatchEvent(new CustomEvent('Summary_saveToWI'))"
+                title="将最后一条 AI 回复保存到世界书条目"
+            >
+                <i class="fa-solid fa-book-open"></i> 手动保存回复
+            </button>
+
+            <div class="smry-tip-inline" style="margin-top:5px">
+                <i class="fa-solid fa-circle-info"></i>
+                <div>
+                    <div>勾选「自动保存」后，点击「开始总结」后总结将自动写入世界书条目。</div>
+                    <div style="margin-top:4px;">点击「手动保存回复」可将最新一条 AI 回复存入世界书，适用于：补存总结/用其他方式生成的总结/任意需要存档的非总结文本。</div>
+                    <div style="margin-top:4px;">新建世界书条目默认「角色定义之前」+蓝灯常驻，如需修改请手动调整。</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<style>
+/* ─────────────────────────────────────────────────────────────────
+   总结模块样式（命名空间前缀 smry-）
+   ───────────────────────────────────────────────────────────────── */
+
+.smry-container {
+    padding: 4px 2px;
+}
+
+.smry-title {
+    margin: 0 0 12px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--SmartThemeTextColor);
+}
+
+/* ── 区块通用 ─────────────────────────────────────────────────── */
+.smry-section {
+    margin-bottom: 10px;
+}
+
+.smry-section-hd {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 7px;
+}
+
+.smry-section-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: bold;
+    color: var(--SmartThemeTextColor);
+    opacity: 0.9;
+}
+
+.smry-divider {
+    border: none;
+    border-top: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.1));
+    margin: 10px 0;
+}
+
+
+/* ── 楼层范围输入 ────────────────────────────────────────────── */
+.smry-floor-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    margin-bottom: 5px;
+}
+
+.smry-input-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.smry-input-group label {
+    font-size: 11px;
+    font-weight: bold;
+    color: var(--SmartThemeTextColor);
+    margin-bottom: 4px;
+    opacity: 0.8;
+}
+
+.smry-input-group input {
+    padding: 6px 8px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.2));
+    border-radius: 4px;
+    background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.08));
+    color: var(--SmartThemeTextColor);
+    font-size: 12px;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.smry-input-group input:focus {
+    outline: none;
+    border-color: var(--SmartThemeQuoteColor, #3498db);
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.18);
+}
+
+.smry-range-sep {
+    color: var(--SmartThemeTextColor);
+    opacity: 0.45;
+    font-size: 14px;
+    padding-bottom: 6px;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+/* ── 文本域 ──────────────────────────────────────────────────── */
+.smry-textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.2));
+    border-radius: 5px;
+    background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.06));
+    color: var(--SmartThemeTextColor);
+    font-size: 12px;
+    line-height: 1.5;
+    resize: vertical;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    font-family: inherit;
+    margin-bottom: 6px;
+}
+
+.smry-textarea:focus {
+    outline: none;
+    border-color: var(--SmartThemeQuoteColor, #3498db);
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.15);
+}
+
+.smry-textarea::placeholder {
+    opacity: 0.45;
+    font-size: 11px;
+}
+
+/* ── 预设行 ───────────────────────────────────────────────────── */
+.smry-preset-row {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+
+.smry-select {
+    flex: 1;
+    padding: 5px 7px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.2));
+    border-radius: 4px;
+    background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.08));
+    color: var(--SmartThemeTextColor);
+    font-size: 11px;
+    cursor: pointer;
+    min-width: 0;
+}
+
+.smry-select:focus {
+    outline: none;
+    border-color: var(--SmartThemeQuoteColor, #3498db);
+}
+
+/* ── 图标按钮 ─────────────────────────────────────────────────── */
+.smry-icon-btn {
+    padding: 5px 8px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.2));
+    border-radius: 4px;
+    background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.08));
+    color: var(--SmartThemeTextColor);
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+
+.smry-icon-btn:hover {
+    border-color: var(--SmartThemeQuoteColor, #3498db);
+    color: var(--SmartThemeQuoteColor, #3498db);
+}
+
+.smry-icon-btn--save:hover {
+    border-color: #27ae60;
+    color: #27ae60;
+    background: rgba(39, 174, 96, 0.08);
+}
+
+.smry-icon-btn--del:hover {
+    border-color: #e74c3c;
+    color: #e74c3c;
+    background: rgba(231, 76, 60, 0.08);
+}
+
+/* ── 启动方式选卡（单行） ────────────────────────────────────── */
+.smry-launch-grid {
+    display: flex;
+    flex-direction: row;
+    gap: 5px;
+    margin-bottom: 8px;
+}
+
+.smry-launch-item {
+    flex: 1;
+    cursor: pointer;
+    user-select: none;
+}
+
+.smry-launch-item input[type="radio"] {
+    display: none;
+}
+
+.smry-launch-card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 7px 4px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.15));
+    border-radius: 6px;
+    background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.04));
+    font-size: 11px;
+    color: var(--SmartThemeTextColor);
+    transition: border-color 0.2s, background 0.2s;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.smry-launch-item input[type="radio"]:checked + .smry-launch-card {
+    border-color: var(--SmartThemeQuoteColor, #9b59b6);
+    background: rgba(155, 89, 182, 0.1);
+    box-shadow: 0 0 0 1px rgba(155, 89, 182, 0.35) inset;
+}
+
+.smry-launch-item:hover .smry-launch-card {
+    border-color: var(--SmartThemeQuoteColor, #9b59b6);
+    opacity: 0.9;
+}
+
+/* ── 触发文本输入 ────────────────────────────────────────────── */
+.smry-trigger-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.smry-trigger-label {
+    font-size: 11px;
+    font-weight: bold;
+    color: var(--SmartThemeTextColor);
+    opacity: 0.8;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.smry-trigger-input {
+    flex: 1;
+    padding: 6px 9px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.2));
+    border-radius: 4px;
+    background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.08));
+    color: var(--SmartThemeTextColor);
+    font-size: 12px;
+    min-width: 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.smry-trigger-input:focus {
+    outline: none;
+    border-color: var(--SmartThemeQuoteColor, #9b59b6);
+    box-shadow: 0 0 0 2px rgba(155, 89, 182, 0.15);
+}
+
+/* ── 开关 Toggle ─────────────────────────────────────────────── */
+.smry-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.smry-toggle input[type="checkbox"] {
+    display: none;
+}
+
+.smry-toggle-track {
+    width: 28px;
+    height: 15px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.2));
+    position: relative;
+    transition: background 0.2s;
+    flex-shrink: 0;
+}
+
+.smry-toggle-track::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.5);
+    transition: left 0.2s, background 0.2s;
+}
+
+.smry-toggle input:checked + .smry-toggle-track {
+    background: rgba(39, 174, 96, 0.5);
+    border-color: rgba(39, 174, 96, 0.7);
+}
+
+.smry-toggle input:checked + .smry-toggle-track::after {
+    left: 15px;
+    background: #27ae60;
+}
+
+.smry-toggle-txt {
+    font-size: 11px;
+    color: var(--SmartThemeTextColor);
+    opacity: 0.8;
+}
+
+/* ── 世界书区块 ───────────────────────────────────────────────── */
+.smry-wi-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.smry-wi-label {
+    font-size: 11px;
+    font-weight: bold;
+    color: var(--SmartThemeTextColor);
+    opacity: 0.8;
+    white-space: nowrap;
+    flex-shrink: 0;
+    width: 38px;
+}
+
+.smry-wi-input {
+    flex: 1;
+    padding: 5px 8px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.2));
+    border-radius: 4px;
+    background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.08));
+    color: var(--SmartThemeTextColor);
+    font-size: 12px;
+    min-width: 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.smry-wi-input:focus {
+    outline: none;
+    border-color: var(--SmartThemeQuoteColor, #27ae60);
+    box-shadow: 0 0 0 2px rgba(39, 174, 96, 0.15);
+}
+
+.smry-wi-opts-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.smry-wi-radio {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 11px;
+    color: var(--SmartThemeTextColor);
+}
+
+.smry-wi-check {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 11px;
+    color: var(--SmartThemeTextColor);
+    opacity: 0.85;
+    margin-left: auto;
+}
+
+.smry-wi-save-btn {
+    display: block;
+    width: 100%;
+    padding: 7px;
+    border: 1px solid rgba(39, 174, 96, 0.45);
+    border-radius: 5px;
+    background: rgba(39, 174, 96, 0.07);
+    color: var(--SmartThemeTextColor);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.smry-wi-save-btn:hover {
+    background: rgba(39, 174, 96, 0.18);
+    border-color: #27ae60;
+    color: #2ecc71;
+}
+
+/* ── 执行按钮 ─────────────────────────────────────────────────── */
+.smry-execute-btn {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    margin: 12px 0 10px;
+    border: 1px solid rgba(155, 89, 182, 0.5);
+    border-radius: 6px;
+    background: rgba(155, 89, 182, 0.1);
+    color: var(--SmartThemeTextColor);
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.smry-execute-btn:hover {
+    background: rgba(155, 89, 182, 0.22);
+    border-color: #9b59b6;
+    color: #c39bd3;
+}
+
+.smry-execute-btn:active {
+    background: rgba(155, 89, 182, 0.35);
+}
+
+/* ── 提示框 ───────────────────────────────────────────────────── */
+.smry-tip-box {
+    background: rgba(155, 89, 182, 0.06);
+    border-left: 3px solid rgba(155, 89, 182, 0.45);
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-size: 11px;
+    color: var(--SmartThemeTextColor);
+    opacity: 0.85;
+    line-height: 1.55;
+}
+
+.smry-tip-box strong {
+    color: var(--SmartThemeQuoteColor, #9b59b6);
+    opacity: 1;
+}
+
+.smry-tip-inline {
+    font-size: 10.5px;
+    color: var(--SmartThemeTextColor);
+    opacity: 0.6;
+    line-height: 1.45;
+    padding: 3px 1px;
+}
+
+.smry-tip-inline strong {
+    color: var(--SmartThemeQuoteColor, #3498db);
+    opacity: 1;
+}
+
+/* ── 响应式 ───────────────────────────────────────────────────── */
+@media (max-width: 360px) {
+    .smry-floor-row {
+        flex-direction: column;
+        gap: 6px;
+    }
+    .smry-range-sep {
+        display: none;
+    }
+    .smry-preset-row {
+        flex-wrap: wrap;
+    }
+}
+</style>
