@@ -143,78 +143,79 @@
         const style = document.createElement('style');
         style.id = 'sb-ds-style';
         style.textContent = `
-.ds-app { font-size: 13px; color: var(--SmartThemeTextColor, #ccc); }
+.ds-app { font-size: 13px; color: var(--SmartThemeTextColor); }
 
-/* Sub-tabs */
-.ds-subtabs { display:flex; gap:4px; margin-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:6px; }
-.ds-subtab { flex:1; padding:5px 8px; background:transparent; border:1px solid transparent; border-radius:6px; color:var(--SmartThemeTextColor,#ccc); cursor:pointer; font-size:12px; transition:all 0.15s; }
-.ds-subtab.active { background:rgba(127,127,127,0.2); border-color:rgba(255,255,255,0.2); }
-.ds-subtab:hover:not(.active) { background:rgba(127,127,127,0.1); }
+/* Sub-tabs — 与外层 fs-tab-btn 风格完全一致 */
+.ds-subtabs { display:flex; gap:5px; margin-bottom:10px; }
+.ds-subtab { flex:1; padding:7px 8px; background:var(--SmartThemeChatTintColor, rgba(255,255,255,0.06)); border:1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.15)); border-radius:5px; color:var(--SmartThemeTextColor); font-size:11px; cursor:pointer; transition:border-color 0.2s, background 0.2s, color 0.2s; white-space:nowrap; opacity:0.7; }
+.ds-subtab.active { border-color:var(--SmartThemeQuoteColor, #007bff); background:rgba(0,123,255,0.1); color:var(--SmartThemeQuoteColor, #007bff); opacity:1; }
+.ds-subtab:hover:not(.active) { border-color:var(--SmartThemeBorderColor, rgba(255,255,255,0.3)); opacity:0.9; }
 
-/* Attribute card */
-.ds-card { background:rgba(127,127,127,0.07); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px 12px; margin-bottom:8px; }
+/* 属性卡片 */
+.ds-card { background:var(--SmartThemeChatTintColor, rgba(255,255,255,0.05)); border:1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.15)); border-radius:6px; padding:10px 12px; margin-bottom:8px; }
 .ds-card-head { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
 .ds-card-icon { opacity:0.7; }
-.ds-card-label { flex:1; font-weight:500; }
-.ds-card-val { font-size:16px; font-weight:bold; color:var(--SmartThemeQuoteColor,#e8b4bc); }
+.ds-card-label { flex:1; font-weight:bold; font-size:12px; color:var(--SmartThemeTextColor); }
+.ds-card-val { font-size:15px; font-weight:bold; color:var(--SmartThemeQuoteColor, #007bff); }
 .ds-card-max { opacity:0.5; font-size:12px; }
-.ds-progress-track { height:4px; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden; margin-bottom:6px; }
-.ds-progress-fill { height:100%; background:var(--SmartThemeQuoteColor,#e8b4bc); border-radius:2px; transition:width 0.3s ease; }
-.ds-stage-desc { font-size:11px; opacity:0.65; margin-bottom:6px; font-style:italic; }
+.ds-progress-track { height:4px; background:var(--SmartThemeBorderColor, rgba(255,255,255,0.15)); border-radius:2px; overflow:hidden; margin-bottom:6px; }
+.ds-progress-fill { height:100%; background:var(--SmartThemeQuoteColor, #007bff); border-radius:2px; transition:width 0.3s ease; opacity:0.8; }
+.ds-stage-desc { font-size:11px; opacity:0.65; margin-bottom:6px; font-style:italic; color:var(--SmartThemeTextColor); }
 .ds-card-controls { display:flex; align-items:center; gap:6px; }
-.ds-btn-step { padding:3px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.2); background:rgba(127,127,127,0.15); color:var(--SmartThemeTextColor,#ccc); cursor:pointer; font-size:12px; }
-.ds-btn-step:hover { background:rgba(127,127,127,0.3); }
-.ds-val-input { flex:1; text-align:center; background:rgba(127,127,127,0.1); border:1px solid rgba(255,255,255,0.15); border-radius:4px; color:var(--SmartThemeTextColor,#ccc); padding:3px 6px; font-size:13px; min-width:0; }
-.ds-refresh-btn { width:100%; padding:6px; margin-top:4px; background:transparent; border:1px dashed rgba(255,255,255,0.15); border-radius:6px; color:var(--SmartThemeTextColor,#ccc); cursor:pointer; font-size:12px; opacity:0.7; }
-.ds-refresh-btn:hover { opacity:1; background:rgba(127,127,127,0.1); }
+.ds-btn-step { padding:6px 10px; border-radius:4px; border:1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.2)); background:var(--SmartThemeChatTintColor, rgba(255,255,255,0.08)); color:var(--SmartThemeTextColor); cursor:pointer; font-size:12px; transition:border-color 0.2s, color 0.2s; }
+.ds-btn-step:hover { border-color:var(--SmartThemeQuoteColor, #007bff); color:var(--SmartThemeQuoteColor, #007bff); }
+.ds-val-input { flex:1; text-align:center; background:var(--SmartThemeChatTintColor, rgba(255,255,255,0.08)); border:1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.2)); border-radius:4px; color:var(--SmartThemeTextColor); padding:5px 6px; font-size:12px; min-width:0; transition:border-color 0.2s, box-shadow 0.2s; }
+.ds-val-input:focus { outline:none; border-color:var(--SmartThemeQuoteColor, #007bff); box-shadow:0 0 0 2px rgba(0,123,255,0.18); }
+.ds-refresh-btn { width:100%; padding:7px; margin-top:4px; background:var(--SmartThemeChatTintColor, rgba(255,255,255,0.06)); border:1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.15)); border-radius:5px; color:var(--SmartThemeTextColor); cursor:pointer; font-size:12px; opacity:0.7; transition:border-color 0.2s, color 0.2s, opacity 0.2s; }
+.ds-refresh-btn:hover { opacity:1; border-color:var(--SmartThemeQuoteColor, #007bff); color:var(--SmartThemeQuoteColor, #007bff); }
 
-/* Config */
-.ds-config-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.06); margin-bottom:10px; }
-.ds-toggle-label { display:flex; align-items:center; gap:6px; cursor:pointer; user-select:none; }
-.ds-hint { font-size:11px; opacity:0.5; }
-.ds-section-hd { display:flex; align-items:center; justify-content:space-between; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; opacity:0.7; margin-bottom:6px; }
-.ds-add-btn { width:20px; height:20px; border-radius:4px; border:1px solid rgba(255,255,255,0.2); background:rgba(127,127,127,0.15); color:var(--SmartThemeTextColor,#ccc); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0; }
-.ds-add-btn:hover { background:rgba(127,127,127,0.3); }
-.ds-list-item { display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:6px; background:rgba(127,127,127,0.05); margin-bottom:4px; font-size:12px; }
+/* 配置区 */
+.ds-config-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.1)); margin-bottom:10px; }
+.ds-toggle-label { display:flex; align-items:center; gap:6px; cursor:pointer; user-select:none; font-size:12px; color:var(--SmartThemeTextColor); }
+.ds-hint { font-size:11px; opacity:0.5; color:var(--SmartThemeTextColor); }
+.ds-section-hd { display:flex; align-items:center; justify-content:space-between; font-size:11px; font-weight:bold; opacity:0.85; margin-bottom:6px; color:var(--SmartThemeTextColor); }
+.ds-add-btn { width:22px; height:22px; border-radius:4px; border:1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.2)); background:var(--SmartThemeChatTintColor, rgba(255,255,255,0.08)); color:var(--SmartThemeTextColor); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0; transition:border-color 0.2s, color 0.2s; }
+.ds-add-btn:hover { border-color:var(--SmartThemeQuoteColor, #007bff); color:var(--SmartThemeQuoteColor, #007bff); }
+.ds-list-item { display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:5px; background:var(--SmartThemeChatTintColor, rgba(255,255,255,0.05)); border:1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.1)); margin-bottom:4px; font-size:12px; color:var(--SmartThemeTextColor); }
 .ds-list-icon { opacity:0.6; flex-shrink:0; }
 .ds-list-label { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.ds-list-key { opacity:0.5; font-size:11px; white-space:nowrap; }
+.ds-list-key { opacity:0.5; font-size:11px; white-space:nowrap; font-family:monospace; }
 .ds-list-range { opacity:0.4; font-size:11px; white-space:nowrap; }
-.ds-icon-btn { width:22px; height:22px; border-radius:4px; border:none; background:transparent; color:var(--SmartThemeTextColor,#ccc); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0; opacity:0.6; }
-.ds-icon-btn:hover { background:rgba(127,127,127,0.2); opacity:1; }
-.ds-icon-btn.ds-del:hover { background:rgba(220,53,69,0.2); color:#dc3545; }
-.ds-toggle-on { color:#6cc; font-size:18px; cursor:pointer; flex-shrink:0; }
-.ds-toggle-off { opacity:0.4; font-size:18px; cursor:pointer; flex-shrink:0; }
-.ds-empty-sm { text-align:center; padding:8px; opacity:0.4; font-size:12px; }
+.ds-icon-btn { width:22px; height:22px; border-radius:4px; border:1px solid transparent; background:transparent; color:var(--SmartThemeTextColor); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0; opacity:0.6; transition:border-color 0.2s, background 0.2s, color 0.2s, opacity 0.2s; }
+.ds-icon-btn:hover { border-color:var(--SmartThemeBorderColor, rgba(255,255,255,0.2)); background:var(--SmartThemeChatTintColor, rgba(255,255,255,0.08)); opacity:1; }
+.ds-icon-btn.ds-del:hover { border-color:rgba(231,76,60,0.5); background:rgba(231,76,60,0.08); color:#e74c3c; opacity:1; }
+.ds-toggle-on { color:var(--SmartThemeQuoteColor, #27ae60); font-size:18px; cursor:pointer; flex-shrink:0; }
+.ds-toggle-off { color:var(--SmartThemeTextColor); opacity:0.3; font-size:18px; cursor:pointer; flex-shrink:0; }
+.ds-empty-sm { text-align:center; padding:8px; opacity:0.4; font-size:11px; color:var(--SmartThemeTextColor); }
 
-/* History */
-.ds-empty { text-align:center; padding:24px; opacity:0.4; display:flex; flex-direction:column; align-items:center; gap:8px; font-size:13px; }
-.ds-log-row { display:grid; grid-template-columns:100px 1fr 40px 1fr; gap:4px; padding:4px 2px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:12px; align-items:center; }
-.ds-log-time { opacity:0.45; font-size:11px; white-space:nowrap; }
-.ds-log-label { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.ds-log-pos { color:#6cc; font-weight:bold; text-align:center; }
-.ds-log-neg { color:#e88; font-weight:bold; text-align:center; }
-.ds-log-reason { opacity:0.5; font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* 历史记录 */
+.ds-empty { text-align:center; padding:20px; opacity:0.4; display:flex; flex-direction:column; align-items:center; gap:8px; font-size:12px; color:var(--SmartThemeTextColor); }
+.ds-log-row { display:grid; grid-template-columns:100px 1fr 42px 1fr; gap:4px; padding:5px 4px; border-bottom:1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.06)); font-size:11px; align-items:center; }
+.ds-log-row:last-child { border-bottom:none; }
+.ds-log-time { opacity:0.45; white-space:nowrap; color:var(--SmartThemeTextColor); }
+.ds-log-label { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:12px; color:var(--SmartThemeTextColor); }
+.ds-log-pos { color:#27ae60; font-weight:bold; text-align:center; }
+.ds-log-neg { color:#e74c3c; font-weight:bold; text-align:center; }
+.ds-log-reason { opacity:0.5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--SmartThemeTextColor); }
 
-/* Modal */
-.ds-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:9999; display:flex; align-items:flex-start; justify-content:center; padding-top:60px; overflow-y:auto; }
-.ds-modal { background:var(--main-text-color,#1a1a2e); border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:18px; width:480px; max-width:95vw; max-height:80vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
-.ds-modal-hd { font-size:15px; font-weight:600; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.1); }
-.ds-form-grid { display:grid; grid-template-columns:auto 1fr; gap:8px 10px; align-items:center; margin-bottom:12px; }
-.ds-form-grid label { font-size:12px; opacity:0.7; white-space:nowrap; }
-.ds-inp { width:100%; padding:5px 8px; background:rgba(127,127,127,0.1); border:1px solid rgba(255,255,255,0.15); border-radius:5px; color:var(--SmartThemeTextColor,#ccc); font-size:12px; box-sizing:border-box; }
-.ds-inp:focus { outline:none; border-color:rgba(255,255,255,0.3); }
-.ds-inp:disabled { opacity:0.5; cursor:not-allowed; }
+/* 内联表单 */
+.ds-inline-form { background:var(--SmartThemeChatTintColor, rgba(255,255,255,0.05)); border:1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.15)); border-left:3px solid var(--SmartThemeQuoteColor, #007bff); border-radius:5px; padding:10px 12px; margin-top:6px; margin-bottom:6px; }
+.ds-inline-form-hd { font-size:11px; font-weight:bold; color:var(--SmartThemeQuoteColor, #007bff); margin-bottom:10px; display:flex; align-items:center; gap:5px; }
+.ds-form-grid { display:grid; grid-template-columns:auto 1fr; gap:7px 10px; align-items:center; margin-bottom:8px; }
+.ds-form-grid label { font-size:11px; font-weight:bold; opacity:0.8; white-space:nowrap; color:var(--SmartThemeTextColor); }
+.ds-inp { width:100%; padding:6px 8px; background:var(--SmartThemeChatTintColor, rgba(255,255,255,0.08)); border:1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.2)); border-radius:4px; color:var(--SmartThemeTextColor); font-size:12px; box-sizing:border-box; transition:border-color 0.2s, box-shadow 0.2s; }
+.ds-inp:focus { outline:none; border-color:var(--SmartThemeQuoteColor, #007bff); box-shadow:0 0 0 2px rgba(0,123,255,0.18); }
+.ds-inp:disabled { opacity:0.4; cursor:not-allowed; }
 .ds-inp-sm { width:70px; }
-.ds-textarea { resize:vertical; min-height:60px; }
+.ds-textarea { resize:vertical; min-height:60px; font-family:inherit; line-height:1.5; }
 .ds-four-col { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
-.ds-stages-hd { display:flex; align-items:center; justify-content:space-between; font-size:12px; font-weight:600; opacity:0.7; margin:10px 0 6px; }
+.ds-stages-hd { display:flex; align-items:center; justify-content:space-between; font-size:11px; font-weight:bold; opacity:0.8; margin:8px 0 5px; color:var(--SmartThemeTextColor); }
 .ds-stage-row,.ds-op-row { display:flex; gap:6px; align-items:center; margin-bottom:4px; }
-.ds-modal-ft { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.1); }
-.ds-btn-primary { padding:6px 16px; background:rgba(100,160,220,0.3); border:1px solid rgba(100,160,220,0.5); border-radius:6px; color:#adf; cursor:pointer; font-size:13px; }
-.ds-btn-primary:hover { background:rgba(100,160,220,0.5); }
-.ds-btn-ghost { padding:6px 16px; background:transparent; border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:var(--SmartThemeTextColor,#ccc); cursor:pointer; font-size:13px; }
-.ds-btn-ghost:hover { background:rgba(127,127,127,0.15); }
+.ds-form-footer { display:flex; gap:8px; justify-content:flex-end; margin-top:10px; padding-top:8px; border-top:1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.1)); }
+.ds-btn-primary { padding:6px 14px; background:rgba(0,123,255,0.1); border:1px solid var(--SmartThemeQuoteColor, #007bff); border-radius:5px; color:var(--SmartThemeQuoteColor, #007bff); cursor:pointer; font-size:12px; transition:background 0.2s; }
+.ds-btn-primary:hover { background:rgba(0,123,255,0.22); }
+.ds-btn-ghost { padding:6px 14px; background:var(--SmartThemeChatTintColor, rgba(255,255,255,0.06)); border:1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.2)); border-radius:5px; color:var(--SmartThemeTextColor); cursor:pointer; font-size:12px; transition:border-color 0.2s; }
+.ds-btn-ghost:hover { border-color:var(--SmartThemeQuoteColor, #007bff); color:var(--SmartThemeQuoteColor, #007bff); }
         `;
         document.head.appendChild(style);
     }
@@ -286,11 +287,9 @@
                 const injectPrompt = ref(settings.injectPrompt);
                 const vals = ref({});
                 const log = ref([]);
-                // Modal state
-                const showAttrModal = ref(false);
+                // 内联表单状态
                 const editAttr = ref(null);
                 const isNewAttr = ref(false);
-                const showRuleModal = ref(false);
                 const editRule = ref(null);
                 const isNewRule = ref(false);
                 // ── 数据刷新 ──────────────────────────────────────────────
@@ -312,12 +311,10 @@
                 function openNewAttr() {
                     editAttr.value = { key: '', label: '', icon: 'fa-star', min: 0, max: 100, defaultValue: 50, step: 5, stages: [] };
                     isNewAttr.value = true;
-                    showAttrModal.value = true;
                 }
                 function openEditAttr(a) {
                     editAttr.value = JSON.parse(JSON.stringify(a));
                     isNewAttr.value = false;
-                    showAttrModal.value = true;
                 }
                 function saveAttrForm() {
                     if (!editAttr.value || !editAttr.value.key.trim() || !editAttr.value.label.trim())
@@ -331,7 +328,7 @@
                             attrs.value[idx] = editAttr.value;
                     }
                     persist();
-                    showAttrModal.value = false;
+                    editAttr.value = null;
                 }
                 function deleteAttr(key) {
                     if (!confirm(`删除属性 "${key}"？`))
@@ -351,12 +348,10 @@
                 function openNewRule() {
                     editRule.value = { id: Date.now().toString(), name: '', enabled: true, conditionPrompt: '', onMatch: [], onMiss: [], cooldown: 0, lastTriggered: 0 };
                     isNewRule.value = true;
-                    showRuleModal.value = true;
                 }
                 function openEditRule(r) {
                     editRule.value = JSON.parse(JSON.stringify(r));
                     isNewRule.value = false;
-                    showRuleModal.value = true;
                 }
                 function saveRuleForm() {
                     if (!editRule.value || !editRule.value.name.trim())
@@ -370,7 +365,7 @@
                             rules.value[idx] = editRule.value;
                     }
                     persist();
-                    showRuleModal.value = false;
+                    editRule.value = null;
                 }
                 function toggleRule(r) {
                     r.enabled = !r.enabled;
@@ -433,8 +428,8 @@
                 });
                 return {
                     activeTab, attrs, rules, injectPrompt, vals, log,
-                    showAttrModal, editAttr, isNewAttr,
-                    showRuleModal, editRule, isNewRule,
+                    editAttr, isNewAttr,
+                    editRule, isNewRule,
                     refreshVals, persist,
                     openNewAttr, openEditAttr, saveAttrForm, deleteAttr, addStage, removeStage,
                     openNewRule, openEditRule, saveRuleForm, toggleRule, deleteRule, addOp, removeOp,
@@ -486,11 +481,11 @@
                         <!-- 属性定义 -->
                         <div class="ds-section-hd">
                             <span>属性定义</span>
-                            <button class="ds-add-btn" @click="openNewAttr" title="添加属性">
-                                <i class="fa-solid fa-plus"></i>
+                            <button class="ds-add-btn" @click="editAttr ? (editAttr = null) : openNewAttr()" title="添加属性">
+                                <i :class="editAttr && isNewAttr ? 'fa-solid fa-xmark' : 'fa-solid fa-plus'"></i>
                             </button>
                         </div>
-                        <div v-if="attrs.length===0" class="ds-empty-sm">暂无属性</div>
+                        <div v-if="attrs.length===0 && !editAttr" class="ds-empty-sm">暂无属性</div>
                         <div v-for="a in attrs" :key="a.key" class="ds-list-item">
                             <i :class="'fa-solid '+a.icon+' ds-list-icon'"></i>
                             <span class="ds-list-label">{{ a.label }}</span>
@@ -500,20 +495,98 @@
                             <button class="ds-icon-btn ds-del" @click="deleteAttr(a.key)" title="删除"><i class="fa-solid fa-trash"></i></button>
                         </div>
 
+                        <!-- 属性内联表单 -->
+                        <div v-if="editAttr" class="ds-inline-form">
+                            <div class="ds-inline-form-hd">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                                {{ isNewAttr ? '新建属性' : '编辑：' + editAttr.label }}
+                            </div>
+                            <div class="ds-form-grid">
+                                <label>Key（唯一标识）</label>
+                                <input v-model="editAttr.key" :disabled="!isNewAttr" class="ds-inp" placeholder="favorability"/>
+                                <label>名称</label>
+                                <input v-model="editAttr.label" class="ds-inp" placeholder="好感度"/>
+                                <label>图标 (fa-xxx)</label>
+                                <input v-model="editAttr.icon" class="ds-inp" placeholder="fa-heart"/>
+                                <label>最小 / 最大 / 默认 / 步长</label>
+                                <div class="ds-four-col">
+                                    <input v-model.number="editAttr.min" type="number" class="ds-inp ds-inp-sm" placeholder="0"/>
+                                    <input v-model.number="editAttr.max" type="number" class="ds-inp ds-inp-sm" placeholder="100"/>
+                                    <input v-model.number="editAttr.defaultValue" type="number" class="ds-inp ds-inp-sm" placeholder="50"/>
+                                    <input v-model.number="editAttr.step" type="number" class="ds-inp ds-inp-sm" placeholder="5"/>
+                                </div>
+                            </div>
+                            <div class="ds-stages-hd">
+                                阶段描述
+                                <button class="ds-add-btn" @click="addStage"><i class="fa-solid fa-plus"></i></button>
+                            </div>
+                            <div v-for="(s, i) in editAttr.stages" :key="i" class="ds-stage-row">
+                                <input v-model.number="s.threshold" type="number" class="ds-inp ds-inp-sm" placeholder="阈值"/>
+                                <input v-model="s.label" class="ds-inp ds-inp-sm" placeholder="阶段名"/>
+                                <input v-model="s.description" class="ds-inp" placeholder="行为描述（注入到提示词）"/>
+                                <button class="ds-icon-btn ds-del" @click="removeStage(i)"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                            <div class="ds-form-footer">
+                                <button class="ds-btn-primary" @click="saveAttrForm">保存</button>
+                                <button class="ds-btn-ghost" @click="editAttr = null">取消</button>
+                            </div>
+                        </div>
+
                         <!-- 触发规则 -->
                         <div class="ds-section-hd" style="margin-top:14px">
                             <span>触发规则</span>
-                            <button class="ds-add-btn" @click="openNewRule" title="添加规则">
-                                <i class="fa-solid fa-plus"></i>
+                            <button class="ds-add-btn" @click="editRule ? (editRule = null) : openNewRule()" title="添加规则">
+                                <i :class="editRule && isNewRule ? 'fa-solid fa-xmark' : 'fa-solid fa-plus'"></i>
                             </button>
                         </div>
-                        <div v-if="rules.length===0" class="ds-empty-sm">暂无规则</div>
+                        <div v-if="rules.length===0 && !editRule" class="ds-empty-sm">暂无规则</div>
                         <div v-for="r in rules" :key="r.id" class="ds-list-item">
                             <i :class="r.enabled ? 'ds-toggle-on fa-solid fa-toggle-on' : 'ds-toggle-off fa-solid fa-toggle-off'"
                                 @click="toggleRule(r)"></i>
                             <span class="ds-list-label">{{ r.name }}</span>
                             <button class="ds-icon-btn" @click="openEditRule(r)" title="编辑"><i class="fa-solid fa-pen"></i></button>
                             <button class="ds-icon-btn ds-del" @click="deleteRule(r.id)" title="删除"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+
+                        <!-- 规则内联表单 -->
+                        <div v-if="editRule" class="ds-inline-form">
+                            <div class="ds-inline-form-hd">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                                {{ isNewRule ? '新建规则' : '编辑：' + editRule.name }}
+                            </div>
+                            <div class="ds-form-grid">
+                                <label>规则名称</label>
+                                <input v-model="editRule.name" class="ds-inp" placeholder="例：共进晚餐"/>
+                                <label>判定提示词</label>
+                                <textarea v-model="editRule.conditionPrompt" class="ds-inp ds-textarea" rows="3"
+                                    placeholder="告诉 AI 如何判断条件是否成立，成立时在回复末附加 [ds:addvar] 标签"></textarea>
+                            </div>
+                            <div class="ds-stages-hd">
+                                命中时操作
+                                <button class="ds-add-btn" @click="addOp(editRule.onMatch)"><i class="fa-solid fa-plus"></i></button>
+                            </div>
+                            <div v-for="(op, i) in editRule.onMatch" :key="'m'+i" class="ds-op-row">
+                                <select v-model="op.key" class="ds-inp">
+                                    <option v-for="a in attrs" :value="a.key" :key="a.key">{{ a.label }}（{{ a.key }}）</option>
+                                </select>
+                                <input v-model.number="op.delta" type="number" class="ds-inp ds-inp-sm" placeholder="±数值"/>
+                                <button class="ds-icon-btn ds-del" @click="removeOp(editRule.onMatch, i)"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                            <div class="ds-stages-hd">
+                                未命中时操作
+                                <button class="ds-add-btn" @click="addOp(editRule.onMiss)"><i class="fa-solid fa-plus"></i></button>
+                            </div>
+                            <div v-for="(op, i) in editRule.onMiss" :key="'s'+i" class="ds-op-row">
+                                <select v-model="op.key" class="ds-inp">
+                                    <option v-for="a in attrs" :value="a.key" :key="a.key">{{ a.label }}（{{ a.key }}）</option>
+                                </select>
+                                <input v-model.number="op.delta" type="number" class="ds-inp ds-inp-sm" placeholder="±数值"/>
+                                <button class="ds-icon-btn ds-del" @click="removeOp(editRule.onMiss, i)"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                            <div class="ds-form-footer">
+                                <button class="ds-btn-primary" @click="saveRuleForm">保存</button>
+                                <button class="ds-btn-ghost" @click="editRule = null">取消</button>
+                            </div>
                         </div>
                     </div>
 
@@ -532,89 +605,6 @@
                             <span class="ds-log-reason">{{ e.reason }}</span>
                         </div>
                     </div>
-
-                    <!-- ─── 属性编辑弹窗 ─── -->
-                    <teleport to="body">
-                        <div v-if="showAttrModal && editAttr" class="ds-overlay" @click.self="showAttrModal=false">
-                            <div class="ds-modal">
-                                <div class="ds-modal-hd">{{ isNewAttr ? '新建属性' : '编辑属性' }}</div>
-                                <div class="ds-form-grid">
-                                    <label>Key（唯一标识）</label>
-                                    <input v-model="editAttr.key" :disabled="!isNewAttr" class="ds-inp" placeholder="favorability"/>
-                                    <label>名称</label>
-                                    <input v-model="editAttr.label" class="ds-inp" placeholder="好感度"/>
-                                    <label>图标 (fa-xxx)</label>
-                                    <input v-model="editAttr.icon" class="ds-inp" placeholder="fa-heart"/>
-                                    <label>最小 / 最大 / 默认 / 步长</label>
-                                    <div class="ds-four-col">
-                                        <input v-model.number="editAttr.min" type="number" class="ds-inp ds-inp-sm" placeholder="0"/>
-                                        <input v-model.number="editAttr.max" type="number" class="ds-inp ds-inp-sm" placeholder="100"/>
-                                        <input v-model.number="editAttr.defaultValue" type="number" class="ds-inp ds-inp-sm" placeholder="50"/>
-                                        <input v-model.number="editAttr.step" type="number" class="ds-inp ds-inp-sm" placeholder="5"/>
-                                    </div>
-                                </div>
-                                <div class="ds-stages-hd">
-                                    阶段描述
-                                    <button class="ds-add-btn" @click="addStage"><i class="fa-solid fa-plus"></i></button>
-                                </div>
-                                <div v-for="(s, i) in editAttr.stages" :key="i" class="ds-stage-row">
-                                    <input v-model.number="s.threshold" type="number" class="ds-inp ds-inp-sm" placeholder="阈值"/>
-                                    <input v-model="s.label" class="ds-inp ds-inp-sm" placeholder="阶段名"/>
-                                    <input v-model="s.description" class="ds-inp" placeholder="行为描述（注入到提示词）"/>
-                                    <button class="ds-icon-btn ds-del" @click="removeStage(i)"><i class="fa-solid fa-xmark"></i></button>
-                                </div>
-                                <div class="ds-modal-ft">
-                                    <button class="ds-btn-primary" @click="saveAttrForm">保存</button>
-                                    <button class="ds-btn-ghost" @click="showAttrModal=false">取消</button>
-                                </div>
-                            </div>
-                        </div>
-                    </teleport>
-
-                    <!-- ─── 规则编辑弹窗 ─── -->
-                    <teleport to="body">
-                        <div v-if="showRuleModal && editRule" class="ds-overlay" @click.self="showRuleModal=false">
-                            <div class="ds-modal">
-                                <div class="ds-modal-hd">{{ isNewRule ? '新建规则' : '编辑规则' }}</div>
-                                <div class="ds-form-grid">
-                                    <label>规则名称</label>
-                                    <input v-model="editRule.name" class="ds-inp" placeholder="例：共进晚餐"/>
-                                    <label>判定提示词</label>
-                                    <textarea v-model="editRule.conditionPrompt" class="ds-inp ds-textarea" rows="3"
-                                        placeholder="告诉 AI 如何判断条件是否成立，成立时在回复末附加 [ds:addvar] 标签"></textarea>
-                                </div>
-
-                                <div class="ds-stages-hd">
-                                    命中时操作
-                                    <button class="ds-add-btn" @click="addOp(editRule.onMatch)"><i class="fa-solid fa-plus"></i></button>
-                                </div>
-                                <div v-for="(op, i) in editRule.onMatch" :key="'m'+i" class="ds-op-row">
-                                    <select v-model="op.key" class="ds-inp">
-                                        <option v-for="a in attrs" :value="a.key" :key="a.key">{{ a.label }}（{{ a.key }}）</option>
-                                    </select>
-                                    <input v-model.number="op.delta" type="number" class="ds-inp ds-inp-sm" placeholder="±数值"/>
-                                    <button class="ds-icon-btn ds-del" @click="removeOp(editRule.onMatch, i)"><i class="fa-solid fa-xmark"></i></button>
-                                </div>
-
-                                <div class="ds-stages-hd">
-                                    未命中时操作
-                                    <button class="ds-add-btn" @click="addOp(editRule.onMiss)"><i class="fa-solid fa-plus"></i></button>
-                                </div>
-                                <div v-for="(op, i) in editRule.onMiss" :key="'s'+i" class="ds-op-row">
-                                    <select v-model="op.key" class="ds-inp">
-                                        <option v-for="a in attrs" :value="a.key" :key="a.key">{{ a.label }}（{{ a.key }}）</option>
-                                    </select>
-                                    <input v-model.number="op.delta" type="number" class="ds-inp ds-inp-sm" placeholder="±数值"/>
-                                    <button class="ds-icon-btn ds-del" @click="removeOp(editRule.onMiss, i)"><i class="fa-solid fa-xmark"></i></button>
-                                </div>
-
-                                <div class="ds-modal-ft">
-                                    <button class="ds-btn-primary" @click="saveRuleForm">保存</button>
-                                    <button class="ds-btn-ghost" @click="showRuleModal=false">取消</button>
-                                </div>
-                            </div>
-                        </div>
-                    </teleport>
 
                 </div>
             `,
