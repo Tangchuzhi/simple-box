@@ -1,11 +1,11 @@
 {
     "name": "simple-box",
     "version": "1.0.0",
-    "description": "SillyTavern 楼层精简插件 - 精准管理聊天楼层的显示与隐藏",
     "scripts": {
-        "build": "tsc",
-        "watch": "tsc --watch",
-        "clean": "node -e \"const fs=require('fs');['index.js','隐藏楼层/index.js','总结/index.js'].forEach(f=>{try{fs.unlinkSync(f);console.log('Deleted '+f)}catch(e){}})\""
+        "sync:version": "node scripts/sync-version.js",
+        "build": "npm run sync:version && tsc",
+        "watch": "npm run sync:version && tsc --watch",
+        "clean": "node -e \"const fs=require('fs');['index.js','隐藏楼层/index.js','总结/index.js','动态系统/index.js'].forEach(f=>{try{fs.unlinkSync(f);console.log('Deleted '+f)}catch(e){}})\""
     },
     "devDependencies": {
         "typescript": "^5.4.0"
