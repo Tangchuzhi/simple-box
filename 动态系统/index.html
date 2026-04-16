@@ -1,6 +1,178 @@
-<div id="sb-ds-root">
-    <div style="text-align:center;padding:20px;opacity:0.5">
-        <i class="fa-solid fa-spinner fa-spin"></i>
-        <p style="margin:6px 0 0;font-size:12px">正在加载动态系统...</p>
+<style>
+/* ── 动态系统 DS 样式 ─────────────────────────────────────────────────── */
+.ds-app { font-size:13px; color:var(--SmartThemeTextColor); }
+
+/* Sub-tabs */
+.ds-subtabs { display:flex; gap:5px; margin-bottom:10px; }
+.ds-subtab { flex:1; padding:7px 8px; background:var(--SmartThemeChatTintColor,rgba(255,255,255,0.06)); border:1px solid var(--SmartThemeBorderColor,rgba(255,255,255,0.15)); border-radius:5px; color:var(--SmartThemeTextColor); font-size:11px; cursor:pointer; transition:border-color .2s,background .2s,color .2s; opacity:.7; }
+.ds-subtab.active { border-color:var(--SmartThemeQuoteColor,#007bff); background:rgba(0,123,255,.1); color:var(--SmartThemeQuoteColor,#007bff); opacity:1; }
+.ds-subtab:hover:not(.active) { border-color:var(--SmartThemeBorderColor,rgba(255,255,255,.3)); opacity:.9; }
+
+/* Attribute card */
+.ds-card { background:var(--SmartThemeChatTintColor,rgba(255,255,255,.05)); border:1px solid var(--SmartThemeBorderColor,rgba(255,255,255,.15)); border-radius:6px; padding:10px 12px; margin-bottom:8px; }
+.ds-card-head { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
+.ds-card-icon { opacity:.7; }
+.ds-card-label { flex:1; font-weight:bold; font-size:12px; }
+.ds-card-val { font-size:15px; font-weight:bold; color:var(--SmartThemeQuoteColor,#007bff); }
+.ds-card-max { opacity:.5; font-size:12px; }
+.ds-progress-track { height:4px; background:var(--SmartThemeBorderColor,rgba(255,255,255,.15)); border-radius:2px; overflow:hidden; margin-bottom:6px; }
+.ds-progress-fill { height:100%; background:var(--SmartThemeQuoteColor,#007bff); border-radius:2px; transition:width .3s ease; opacity:.8; }
+.ds-stage-desc { font-size:11px; opacity:.65; margin-bottom:6px; font-style:italic; }
+.ds-card-controls { display:flex; align-items:center; gap:6px; }
+.ds-btn-step { padding:6px 10px; border-radius:4px; border:1px solid var(--SmartThemeBorderColor,rgba(255,255,255,.2)); background:var(--SmartThemeChatTintColor,rgba(255,255,255,.08)); color:var(--SmartThemeTextColor); cursor:pointer; font-size:12px; transition:border-color .2s,color .2s; }
+.ds-btn-step:hover { border-color:var(--SmartThemeQuoteColor,#007bff); color:var(--SmartThemeQuoteColor,#007bff); }
+.ds-val-input { flex:1; text-align:center; background:var(--SmartThemeChatTintColor,rgba(255,255,255,.08)); border:1px solid var(--SmartThemeBorderColor,rgba(255,255,255,.2)); border-radius:4px; color:var(--SmartThemeTextColor); padding:5px 6px; font-size:12px; min-width:0; transition:border-color .2s,box-shadow .2s; }
+.ds-val-input:focus { outline:none; border-color:var(--SmartThemeQuoteColor,#007bff); box-shadow:0 0 0 2px rgba(0,123,255,.18); }
+.ds-refresh-btn { width:100%; padding:7px; margin-top:4px; background:var(--SmartThemeChatTintColor,rgba(255,255,255,.06)); border:1px solid var(--SmartThemeBorderColor,rgba(255,255,255,.15)); border-radius:5px; color:var(--SmartThemeTextColor); cursor:pointer; font-size:12px; opacity:.7; transition:border-color .2s,color .2s,opacity .2s; }
+.ds-refresh-btn:hover { opacity:1; border-color:var(--SmartThemeQuoteColor,#007bff); color:var(--SmartThemeQuoteColor,#007bff); }
+
+/* Config */
+.ds-config-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--SmartThemeBorderColor,rgba(255,255,255,.1)); margin-bottom:10px; }
+.ds-toggle-label { display:flex; align-items:center; gap:6px; cursor:pointer; user-select:none; font-size:12px; }
+.ds-hint { font-size:11px; opacity:.5; }
+.ds-section-hd { display:flex; align-items:center; justify-content:space-between; font-size:11px; font-weight:bold; opacity:.85; margin-bottom:6px; }
+.ds-add-btn { width:22px; height:22px; border-radius:4px; border:1px solid var(--SmartThemeBorderColor,rgba(255,255,255,.2)); background:var(--SmartThemeChatTintColor,rgba(255,255,255,.08)); color:var(--SmartThemeTextColor); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0; transition:border-color .2s,color .2s; }
+.ds-add-btn:hover { border-color:var(--SmartThemeQuoteColor,#007bff); color:var(--SmartThemeQuoteColor,#007bff); }
+.ds-list-item { display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:5px; background:var(--SmartThemeChatTintColor,rgba(255,255,255,.05)); border:1px solid var(--SmartThemeBorderColor,rgba(255,255,255,.1)); margin-bottom:4px; font-size:12px; }
+.ds-list-icon { opacity:.6; flex-shrink:0; }
+.ds-list-label { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ds-list-key { opacity:.5; font-size:11px; white-space:nowrap; font-family:monospace; }
+.ds-list-range { opacity:.4; font-size:11px; white-space:nowrap; }
+.ds-icon-btn { width:22px; height:22px; border-radius:4px; border:1px solid transparent; background:transparent; color:var(--SmartThemeTextColor); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0; opacity:.6; transition:border-color .2s,background .2s,color .2s,opacity .2s; }
+.ds-icon-btn:hover { border-color:var(--SmartThemeBorderColor,rgba(255,255,255,.2)); background:var(--SmartThemeChatTintColor,rgba(255,255,255,.08)); opacity:1; }
+.ds-icon-btn.ds-del:hover { border-color:rgba(231,76,60,.5); background:rgba(231,76,60,.08); color:#e74c3c; opacity:1; }
+.ds-toggle-on { color:var(--SmartThemeQuoteColor,#27ae60); font-size:18px; cursor:pointer; flex-shrink:0; }
+.ds-toggle-off { opacity:.3; font-size:18px; cursor:pointer; flex-shrink:0; }
+.ds-empty-sm { text-align:center; padding:8px; opacity:.4; font-size:11px; }
+
+/* Inline form */
+.ds-inline-form { background:var(--SmartThemeChatTintColor,rgba(255,255,255,.05)); border:1px solid var(--SmartThemeBorderColor,rgba(255,255,255,.15)); border-left:3px solid var(--SmartThemeQuoteColor,#007bff); border-radius:5px; padding:10px 12px; margin-top:6px; margin-bottom:6px; }
+.ds-inline-form-hd { font-size:11px; font-weight:bold; color:var(--SmartThemeQuoteColor,#007bff); margin-bottom:10px; display:flex; align-items:center; gap:5px; }
+.ds-form-grid { display:grid; grid-template-columns:auto 1fr; gap:7px 10px; align-items:center; margin-bottom:8px; }
+.ds-form-grid label { font-size:11px; font-weight:bold; opacity:.8; white-space:nowrap; color:var(--SmartThemeTextColor); }
+.ds-inp { width:100%; padding:6px 8px; background:var(--SmartThemeChatTintColor,rgba(255,255,255,.08)); border:1px solid var(--SmartThemeBorderColor,rgba(255,255,255,.2)); border-radius:4px; color:var(--SmartThemeTextColor); font-size:12px; box-sizing:border-box; transition:border-color .2s,box-shadow .2s; }
+.ds-inp:focus { outline:none; border-color:var(--SmartThemeQuoteColor,#007bff); box-shadow:0 0 0 2px rgba(0,123,255,.18); }
+.ds-inp:disabled { opacity:.4; cursor:not-allowed; }
+.ds-inp-sm { width:70px; }
+.ds-textarea { resize:vertical; min-height:60px; font-family:inherit; line-height:1.5; }
+.ds-four-col { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.ds-stages-hd { display:flex; align-items:center; justify-content:space-between; font-size:11px; font-weight:bold; opacity:.8; margin:8px 0 5px; color:var(--SmartThemeTextColor); }
+.ds-stage-row,.ds-op-row { display:flex; gap:6px; align-items:center; margin-bottom:4px; }
+.ds-form-footer { display:flex; gap:8px; justify-content:flex-end; margin-top:10px; padding-top:8px; border-top:1px solid var(--SmartThemeBorderColor,rgba(255,255,255,.1)); }
+.ds-btn-primary { padding:6px 14px; background:rgba(0,123,255,.1); border:1px solid var(--SmartThemeQuoteColor,#007bff); border-radius:5px; color:var(--SmartThemeQuoteColor,#007bff); cursor:pointer; font-size:12px; transition:background .2s; }
+.ds-btn-primary:hover { background:rgba(0,123,255,.22); }
+.ds-btn-ghost { padding:6px 14px; background:var(--SmartThemeChatTintColor,rgba(255,255,255,.06)); border:1px solid var(--SmartThemeBorderColor,rgba(255,255,255,.2)); border-radius:5px; color:var(--SmartThemeTextColor); cursor:pointer; font-size:12px; transition:border-color .2s; }
+.ds-btn-ghost:hover { border-color:var(--SmartThemeQuoteColor,#007bff); color:var(--SmartThemeQuoteColor,#007bff); }
+
+/* History */
+.ds-empty { text-align:center; padding:20px; opacity:.4; display:flex; flex-direction:column; align-items:center; gap:8px; font-size:12px; }
+.ds-log-row { display:grid; grid-template-columns:90px 1fr 42px 1fr; gap:4px; padding:5px 4px; border-bottom:1px solid var(--SmartThemeBorderColor,rgba(255,255,255,.06)); font-size:11px; align-items:center; }
+.ds-log-row:last-child { border-bottom:none; }
+.ds-log-time { opacity:.45; white-space:nowrap; }
+.ds-log-label { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:12px; }
+.ds-log-pos { color:#27ae60; font-weight:bold; text-align:center; }
+.ds-log-neg { color:#e74c3c; font-weight:bold; text-align:center; }
+.ds-log-reason { opacity:.5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+</style>
+
+<div class="ds-app">
+
+    <!-- Sub-tabs -->
+    <div class="ds-subtabs">
+        <button class="ds-subtab active" id="ds-tab-status"><i class="fa-solid fa-gauge-high"></i> 状态</button>
+        <button class="ds-subtab" id="ds-tab-config"><i class="fa-solid fa-sliders"></i> 配置</button>
+        <button class="ds-subtab" id="ds-tab-history"><i class="fa-solid fa-clock-rotate-left"></i> 历史</button>
     </div>
+
+    <!-- ─── 状态面板 ─── -->
+    <div id="ds-panel-status">
+        <div id="ds-attr-cards"></div>
+        <button class="ds-refresh-btn" id="ds-refresh-btn"><i class="fa-solid fa-rotate"></i> 刷新数值</button>
+    </div>
+
+    <!-- ─── 配置面板 ─── -->
+    <div id="ds-panel-config" style="display:none">
+        <div class="ds-config-row">
+            <label class="ds-toggle-label">
+                <input type="checkbox" id="ds-inject-toggle"/> 注入提示词
+            </label>
+            <span class="ds-hint">让 AI 了解当前状态并按规则附加 [ds:addvar] 标签</span>
+        </div>
+
+        <div class="ds-section-hd">
+            <span>属性定义</span>
+            <button class="ds-add-btn" id="ds-new-attr-btn" title="添加属性"><i class="fa-solid fa-plus"></i></button>
+        </div>
+        <div id="ds-attr-config-list"></div>
+
+        <div id="ds-attr-form" class="ds-inline-form" style="display:none">
+            <div class="ds-inline-form-hd">
+                <i class="fa-solid fa-pen-to-square"></i>
+                <span id="ds-attr-form-title">新建属性</span>
+            </div>
+            <div class="ds-form-grid">
+                <label>Key（唯一标识）</label>
+                <input type="text" id="ds-attr-key" class="ds-inp" placeholder="favorability"/>
+                <label>名称</label>
+                <input type="text" id="ds-attr-label" class="ds-inp" placeholder="好感度"/>
+                <label>图标 (fa-xxx)</label>
+                <input type="text" id="ds-attr-icon" class="ds-inp" placeholder="fa-heart"/>
+                <label>最小 / 最大 / 默认 / 步长</label>
+                <div class="ds-four-col">
+                    <input type="number" id="ds-attr-min" class="ds-inp ds-inp-sm" placeholder="0"/>
+                    <input type="number" id="ds-attr-max" class="ds-inp ds-inp-sm" placeholder="100"/>
+                    <input type="number" id="ds-attr-default" class="ds-inp ds-inp-sm" placeholder="50"/>
+                    <input type="number" id="ds-attr-step" class="ds-inp ds-inp-sm" placeholder="5"/>
+                </div>
+            </div>
+            <div class="ds-stages-hd">
+                阶段描述
+                <button class="ds-add-btn" id="ds-add-stage-btn"><i class="fa-solid fa-plus"></i></button>
+            </div>
+            <div id="ds-stage-rows"></div>
+            <div class="ds-form-footer">
+                <button class="ds-btn-primary" id="ds-save-attr-btn">保存</button>
+                <button class="ds-btn-ghost" id="ds-cancel-attr-btn">取消</button>
+            </div>
+        </div>
+
+        <div class="ds-section-hd" style="margin-top:14px">
+            <span>触发规则</span>
+            <button class="ds-add-btn" id="ds-new-rule-btn" title="添加规则"><i class="fa-solid fa-plus"></i></button>
+        </div>
+        <div id="ds-rule-config-list"></div>
+
+        <div id="ds-rule-form" class="ds-inline-form" style="display:none">
+            <div class="ds-inline-form-hd">
+                <i class="fa-solid fa-pen-to-square"></i>
+                <span id="ds-rule-form-title">新建规则</span>
+            </div>
+            <div class="ds-form-grid">
+                <label>规则名称</label>
+                <input type="text" id="ds-rule-name" class="ds-inp" placeholder="例：共进晚餐"/>
+                <label>判定提示词</label>
+                <textarea id="ds-rule-prompt" class="ds-inp ds-textarea" rows="3" placeholder="告诉 AI 如何判断条件是否成立，成立时在回复末附加 [ds:addvar] 标签"></textarea>
+            </div>
+            <div class="ds-stages-hd">
+                命中时操作
+                <button class="ds-add-btn" id="ds-add-match-btn"><i class="fa-solid fa-plus"></i></button>
+            </div>
+            <div id="ds-match-rows"></div>
+            <div class="ds-stages-hd" style="margin-top:8px">
+                未命中时操作
+                <button class="ds-add-btn" id="ds-add-miss-btn"><i class="fa-solid fa-plus"></i></button>
+            </div>
+            <div id="ds-miss-rows"></div>
+            <div class="ds-form-footer">
+                <button class="ds-btn-primary" id="ds-save-rule-btn">保存</button>
+                <button class="ds-btn-ghost" id="ds-cancel-rule-btn">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── 历史面板 ─── -->
+    <div id="ds-panel-history" style="display:none">
+        <div id="ds-log-list"></div>
+    </div>
+
 </div>
