@@ -63,6 +63,8 @@
 .ds-log-pos { color:#27ae60; font-weight:bold; text-align:center; }
 .ds-log-neg { color:#e74c3c; font-weight:bold; text-align:center; }
 .ds-log-reason { opacity:.5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ds-char-group-hd { font-size:11px; font-weight:bold; color:var(--SmartThemeQuoteColor,#007bff); opacity:.85; padding:6px 0 3px; margin-bottom:3px; border-bottom:1px solid var(--SmartThemeBorderColor,rgba(255,255,255,.1)); }
+.ds-list-char { font-size:10px; padding:1px 5px; border-radius:3px; background:rgba(0,123,255,.12); border:1px solid rgba(0,123,255,.3); color:var(--SmartThemeQuoteColor,#007bff); white-space:nowrap; flex-shrink:0; }
 </style>
 
 <div class="ds-app">
@@ -83,21 +85,35 @@
     <!-- ─── 配置面板 ─── -->
     <div id="ds-panel-config" style="display:none">
 
-        <!-- 注入开关 -->
+        <!-- 注入开关 + 深度选择 -->
         <div class="ds-config-row">
             <label class="ds-toggle-label">
                 <input type="checkbox" id="ds-inject-toggle" checked/> 注入提示词
             </label>
-            <span class="ds-hint">每轮让 AI 在回复末尾附加 {{ds_rules: R1=是/否…}} 判定</span>
+            <span class="ds-hint">让 AI 在每条回复末附加 {{ds_rules:…}} 判定</span>
+        </div>
+        <div class="ds-config-row" style="flex-wrap:wrap;gap:6px 12px">
+            <span style="font-size:11px;opacity:.8;white-space:nowrap">注入深度</span>
+            <select id="ds-inject-depth" class="ds-inp" style="width:auto;min-width:130px">
+                <option value="0">d0 — 靠近最新消息</option>
+                <option value="1">d1</option>
+                <option value="4">d4</option>
+                <option value="8">d8</option>
+                <option value="9000">d9000 — 靠近对话开始</option>
+            </select>
+            <span class="ds-hint">（d0=最新最后注入；d9000=最早紧贴系统提示词）</span>
+        </div>
+        <div style="font-size:11px;opacity:.45;padding:3px 0 8px;border-bottom:1px solid var(--SmartThemeBorderColor,rgba(255,255,255,.1));margin-bottom:10px">
+            <i class="fa-solid fa-database"></i>&nbsp;配置与数值均存储在<strong>当前聊天记录</strong>中，不同对话完全独立
         </div>
 
         <!-- 快速模板 -->
         <div class="ds-section-hd"><span>快速模板</span></div>
         <div class="ds-template-list" id="ds-template-list">
-            <button class="ds-template-btn" data-tid="affection" title="追踪角色对玩家的好感与信任">好感度系统</button>
-            <button class="ds-template-btn" data-tid="growth" title="追踪技能、能力或经验成长">成长系统</button>
-            <button class="ds-template-btn" data-tid="lust" title="追踪欲望与亲密关系状态">情欲系统</button>
-            <button class="ds-template-btn" data-tid="mood" title="追踪角色当前心情与精神状态">情绪系统</button>
+            <button class="ds-template-btn" data-tid="relationship" title="追踪角色与USER之间的长期关系变化与角色弧光发展">关系弧光系统</button>
+            <button class="ds-template-btn" data-tid="intimacy" title="追踪角色与USER之间的亲密、欲望与情感张力变化">亲密关系系统</button>
+            <button class="ds-template-btn" data-tid="status" title="追踪角色当前的情绪、压力与疲劳状态变化">情绪状态系统</button>
+            <button class="ds-template-btn" data-tid="combat" title="追踪角色或USER在战斗或冒险过程中的核心资源变化">战斗冒险系统</button>
         </div>
 
         <!-- 属性定义 -->
@@ -124,6 +140,11 @@
                     <input type="number" id="ds-attr-default" class="ds-inp ds-inp-sm" placeholder="50"/>
                     <input type="number" id="ds-attr-step" class="ds-inp ds-inp-sm" placeholder="5"/>
                 </div>
+                <label>所属角色（可选）</label>
+                <input type="text" id="ds-attr-character" class="ds-inp" placeholder="留空=全局；填写后变量名为 ds_角色_key，可在世界书中用 {{getvar::ds_角色_key}} 读取"/>
+                <label>演绎阶段（可选，每行格式：<code>最小值: 阶段描述</code>）</label>
+                <textarea id="ds-attr-thresholds" class="ds-inp ds-textarea" rows="3" placeholder="-100: 强烈反感，言辞尖刻&#10;-50: 漠然冷淡&#10;0: 友好亲近&#10;50: 深厚感情，主动依赖USER"></textarea>
+                <div class="ds-hint" style="margin-top:3px">将写入聊天世界书，AI 通过 <code>{{getvar::}}</code> 宏实时读取当前数值并对照演绎</div>
             </div>
             <div class="ds-form-footer">
                 <button class="ds-btn-primary" id="ds-save-attr-btn">保存</button>
