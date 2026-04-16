@@ -1,5 +1,6 @@
 /**
- * 动态系统 — 规则驱动的角色属性管理模块（纯原生 JS，无框架依赖）
+ * 动态系统 — 属性追踪模块（玩家友好，内置模板，AI生成规则）
+ * 规则格式：是/否判定题，AI在回复末尾附加 {{ds_rules: R1=是, R2=否}}
  */
 (function () {
     const INIT_FLAG = '__sb_ds_loaded__';
@@ -9,14 +10,63 @@
     const EXT_KEY = 'simple-box-dynamic';
     const LOG_KEY = 'sb_ds_log';
     const INJECT_KEY = 'simple-box-dynamic';
+    const RULEGEN_KEY = 'sb-ds-rulegen';
+    const LOG_PREFIX = '[动态系统]';
+    const TEMPLATES = [
+        {
+            id: 'affection',
+            name: '好感度系统',
+            desc: '追踪角色对玩家的好感与信任',
+            attributes: [
+                { label: '好感度', min: -100, max: 100, defaultValue: 0, step: 5 },
+                { label: '信任度', min: 0, max: 100, defaultValue: 50, step: 5 },
+            ],
+            ruleGenHint: '好感度和信任度变化，关注玩家行为是否让角色产生好感/反感、信任/不信任',
+        },
+        {
+            id: 'growth',
+            name: '成长系统',
+            desc: '追踪技能、能力或经验成长',
+            attributes: [
+                { label: '经验值', min: 0, max: 1000, defaultValue: 0, step: 10 },
+                { label: '熟练度', min: 0, max: 100, defaultValue: 0, step: 3 },
+            ],
+            ruleGenHint: '经验与技能成长，关注角色是否经历了有价值的战斗、学习或成长事件',
+        },
+        {
+            id: 'lust',
+            name: '情欲系统',
+            desc: '追踪欲望与亲密关系状态',
+            attributes: [
+                { label: '情欲值', min: 0, max: 100, defaultValue: 0, step: 5 },
+                { label: '羞耻感', min: 0, max: 100, defaultValue: 50, step: 5 },
+            ],
+            ruleGenHint: '情欲与亲密程度变化，关注性相关行为、身体接触、心理状态变化',
+        },
+        {
+            id: 'mood',
+            name: '情绪系统',
+            desc: '追踪角色当前心情与精神状态',
+            attributes: [
+                { label: '心情', min: -50, max: 50, defaultValue: 0, step: 5 },
+                { label: '压力值', min: 0, max: 100, defaultValue: 20, step: 5 },
+            ],
+            ruleGenHint: '心情与压力变化，关注角色是否遭受压力、挫折或获得愉悦、放松',
+        },
+    ];
+    // ── Core helpers ──────────────────────────────────────────────
     function getCtx() { var _a, _b; return (_b = (_a = window.SillyTavern) === null || _a === void 0 ? void 0 : _a.getContext) === null || _b === void 0 ? void 0 : _b.call(_a); }
+    function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
     function getSettings() {
         const w = window;
         if (!w.extension_settings)
             w.extension_settings = {};
         if (!w.extension_settings[EXT_KEY])
             w.extension_settings[EXT_KEY] = { attributes: [], rules: [], injectPrompt: true };
-        return w.extension_settings[EXT_KEY];
+        const s = w.extension_settings[EXT_KEY];
+        if (!Array.isArray(s.rules))
+            s.rules = [];
+        return s;
     }
     function saveSettings() { var _a, _b; (_b = (_a = window).saveSettingsDebounced) === null || _b === void 0 ? void 0 : _b.call(_a); }
     function getVarNum(key) {
@@ -33,54 +83,78 @@
             ctx.chatMetadata[LOG_KEY] = [];
         ctx.chatMetadata[LOG_KEY].unshift(entry);
         if (ctx.chatMetadata[LOG_KEY].length > 200)
-            ctx.chatMetadata[LOG_KEY] = ctx.chatMetadata[LOG_KEY].slice(0, 200);
+            ctx.chatMetadata[LOG_KEY].length = 200;
     }
     async function execSlash(cmd) {
         const ctx = getCtx();
         if (ctx === null || ctx === void 0 ? void 0 : ctx.executeSlashCommandsWithOptions)
             await ctx.executeSlashCommandsWithOptions(cmd);
     }
-    function clampVal(attr, val) { return Math.max(attr.min, Math.min(attr.max, Math.round(val))); }
-    async function setVar(attr, val) {
-        await execSlash(`/setvar key=ds_${attr.key} ${clampVal(attr, val)}`);
-    }
-    async function addVar(attr, delta, reason) {
-        const current = getVarNum(attr.key);
-        const next = clampVal(attr, current + delta);
-        const actual = next - current;
+    function clamp(attr, val) { return Math.max(attr.min, Math.min(attr.max, Math.round(val))); }
+    async function applyDelta(attrKey, delta, reason) {
+        const attr = getSettings().attributes.find(a => a.key === attrKey);
+        if (!attr || delta === 0)
+            return;
+        const actual = clamp(attr, getVarNum(attrKey) + delta) - getVarNum(attrKey);
         if (actual === 0)
             return;
-        await execSlash(`/addvar key=ds_${attr.key} ${actual}`);
-        appendLog({ time: Date.now(), key: attr.key, label: attr.label, delta: actual, reason });
+        await execSlash(`/addvar key=ds_${attrKey} ${actual}`);
+        appendLog({ time: Date.now(), label: attr.label, delta: actual, reason });
     }
-    function updatePrompt(s) {
+    async function setVarDirect(attrKey, val) {
+        const attr = getSettings().attributes.find(a => a.key === attrKey);
+        if (!attr)
+            return;
+        await execSlash(`/setvar key=ds_${attrKey} ${clamp(attr, val)}`);
+    }
+    function updatePrompt() {
         const ctx = getCtx();
         if (!(ctx === null || ctx === void 0 ? void 0 : ctx.setExtensionPrompt))
             return;
+        const s = getSettings();
         if (!s.injectPrompt || s.attributes.length === 0) {
-            ctx.setExtensionPrompt(INJECT_KEY, '', 1, 0);
+            ctx.setExtensionPrompt(INJECT_KEY, '', 1, 9000);
             return;
         }
-        const attrLines = s.attributes.map(a => {
-            const val = getVarNum(a.key);
-            const stage = [...a.stages].sort((x, y) => y.threshold - x.threshold).find(st => val >= st.threshold);
-            return `- ${a.label}：${val}/${a.max}${stage ? `（${stage.label}：${stage.description}）` : ''}`;
-        });
-        const ruleLines = s.rules.filter(r => r.enabled && r.conditionPrompt.trim()).map(r => `- ${r.name}：${r.conditionPrompt}`);
-        const lines = ['【动态系统 · 当前状态】', ...attrLines];
-        if (ruleLines.length > 0)
-            lines.push('', '【触发规则】（满足条件时在回复末尾附加变更标签）', ...ruleLines);
-        lines.push('', '变量更新格式：[ds:addvar key=变量名 数值]');
-        ctx.setExtensionPrompt(INJECT_KEY, lines.join('\n'), 1, 0);
+        const attrLines = s.attributes.map(a => `  ${a.label}：${getVarNum(a.key)}（范围 ${a.min}～${a.max}）`);
+        const enabled = s.rules.filter(r => r.enabled && r.question.trim());
+        const lines = ['【动态属性追踪系统】', '当前属性：', ...attrLines];
+        if (enabled.length > 0) {
+            lines.push('', `请在每条回复【最后一行】附加判定（不可省略）：`);
+            lines.push('{{ds_rules: ' + enabled.map((_, i) => `R${i + 1}=是/否`).join(', ') + '}}');
+            lines.push('', '判定规则（根据本次回复内容作答）：');
+            enabled.forEach((r, i) => {
+                var _a;
+                const attr = s.attributes.find(a => a.key === r.attrKey);
+                const lbl = (_a = attr === null || attr === void 0 ? void 0 : attr.label) !== null && _a !== void 0 ? _a : r.attrKey;
+                const y = r.yesDelta !== 0 ? `${lbl}${r.yesDelta > 0 ? '+' : ''}${r.yesDelta}` : '无变化';
+                const n = r.noDelta !== 0 ? `${lbl}${r.noDelta > 0 ? '+' : ''}${r.noDelta}` : '无变化';
+                lines.push(`  R${i + 1}：${r.question}（是→${y}，否→${n}）`);
+            });
+        }
+        ctx.setExtensionPrompt(INJECT_KEY, lines.join('\n'), 1, 9000);
     }
-    async function parseReply(text, s) {
-        const re = /\[ds:addvar\s+key=(\S+)\s+(-?\d+(?:\.\d+)?)\]/g;
-        let m;
+    async function parseAndApply(text) {
+        const s = getSettings();
+        const enabled = s.rules.filter(r => r.enabled && r.question.trim());
+        if (enabled.length === 0)
+            return false;
+        const m = text.match(/\{\{ds_rules:\s*([\s\S]*?)\}\}/);
+        if (!m)
+            return false;
         let changed = false;
-        while ((m = re.exec(text)) !== null) {
-            const attr = s.attributes.find(a => a.key === m[1]);
-            if (attr) {
-                await addVar(attr, Number(m[2]), 'AI判断');
+        for (const part of m[1].split(',')) {
+            const pm = part.trim().match(/R(\d+)\s*=\s*(是|否|yes|no)/i);
+            if (!pm)
+                continue;
+            const idx = parseInt(pm[1]) - 1;
+            const isYes = /^(是|yes)$/i.test(pm[2]);
+            const rule = enabled[idx];
+            if (!rule)
+                continue;
+            const delta = isYes ? rule.yesDelta : rule.noDelta;
+            if (delta !== 0) {
+                await applyDelta(rule.attrKey, delta, isYes ? '规则触发（是）' : '规则触发（否）');
                 changed = true;
             }
         }
@@ -96,16 +170,89 @@
         }
         return '';
     }
+    // ── AI rule generation ────────────────────────────────────────
+    let generatingRules = false;
+    let ruleGenAttrKey = '';
+    async function generateRulesForAttr(attrKey) {
+        var _a, _b, _c;
+        if (generatingRules) {
+            if (typeof toastr !== 'undefined')
+                toastr.warning('正在生成中，请稍候…', '动态系统');
+            return;
+        }
+        const s = getSettings();
+        const attr = s.attributes.find(a => a.key === attrKey);
+        if (!attr)
+            return;
+        const tpl = TEMPLATES.find(t => t.attributes.some(a => a.label === attr.label));
+        const hint = (_a = tpl === null || tpl === void 0 ? void 0 : tpl.ruleGenHint) !== null && _a !== void 0 ? _a : `${attr.label}属性变化`;
+        generatingRules = true;
+        ruleGenAttrKey = attrKey;
+        setGenStatus(`正在为「${attr.label}」生成规则…`);
+        const ctx = getCtx();
+        const prompt = `请根据当前角色卡的人设与世界观，为属性「${attr.label}（${attr.min}～${attr.max}）」生成3～5条判定规则。
+要求：每条规则是一个用"是/否"回答的问题，与${hint}高度相关。
+严格只输出以下JSON，不含其他内容：
+[{"question":"问题？","yesDelta":5,"noDelta":0}]`;
+        (_b = ctx === null || ctx === void 0 ? void 0 : ctx.setExtensionPrompt) === null || _b === void 0 ? void 0 : _b.call(ctx, RULEGEN_KEY, prompt, 0, 0, false, 0);
+        await delay(150);
+        try {
+            await ((_c = ctx === null || ctx === void 0 ? void 0 : ctx.executeSlashCommandsWithOptions) === null || _c === void 0 ? void 0 : _c.call(ctx, '/trigger'));
+        }
+        catch ( /* fallback */_d) { /* fallback */ }
+    }
+    async function handleRuleGenComplete() {
+        var _a, _b, _c, _d, _e;
+        if (!generatingRules)
+            return;
+        generatingRules = false;
+        const ctx = getCtx();
+        (_a = ctx === null || ctx === void 0 ? void 0 : ctx.setExtensionPrompt) === null || _a === void 0 ? void 0 : _a.call(ctx, RULEGEN_KEY, '', 0, 0, false, 0);
+        const text = getLastAIMessage();
+        const chat = (_b = ctx === null || ctx === void 0 ? void 0 : ctx.chat) !== null && _b !== void 0 ? _b : [];
+        for (let i = chat.length - 1; i >= 0; i--) {
+            if (!((_c = chat[i]) === null || _c === void 0 ? void 0 : _c.is_user) && !((_d = chat[i]) === null || _d === void 0 ? void 0 : _d.is_system)) {
+                try {
+                    await (ctx === null || ctx === void 0 ? void 0 : ctx.deleteMessage(i));
+                }
+                catch (_f) { }
+                break;
+            }
+        }
+        try {
+            const jm = text.match(/\[[\s\S]*\]/);
+            if (!jm)
+                throw new Error('no JSON');
+            const parsed = JSON.parse(jm[0]);
+            const s = getSettings();
+            for (const r of parsed) {
+                if (r.question && typeof r.yesDelta === 'number') {
+                    s.rules.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2), question: r.question, attrKey: ruleGenAttrKey, yesDelta: r.yesDelta, noDelta: (_e = r.noDelta) !== null && _e !== void 0 ? _e : 0, enabled: true });
+                }
+            }
+            saveSettings();
+            updatePrompt();
+            renderRuleConfigList();
+            setGenStatus(`已生成 ${parsed.length} 条规则`);
+            if (typeof toastr !== 'undefined')
+                toastr.success(`已生成 ${parsed.length} 条规则`, '动态系统');
+        }
+        catch (_g) {
+            setGenStatus('解析失败，请重试');
+        }
+    }
+    function setGenStatus(msg) { const e = document.getElementById('ds-gen-status'); if (e)
+        e.textContent = msg; }
+    // ── UI state ──────────────────────────────────────────────────
     let editAttr = null;
     let editAttrIsNew = false;
     let editRule = null;
     let editRuleIsNew = false;
     let pollTimer = 0;
     let aiMsgHandler = null;
+    let genEndedHandler = null;
     function el(id) { return document.getElementById(id); }
-    function esc(s) {
-        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
+    function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
     function switchTab(tab) {
         ['status', 'config', 'history'].forEach(t => {
             const p = el(`ds-panel-${t}`);
@@ -122,15 +269,13 @@
             return;
         const attrs = getSettings().attributes;
         if (attrs.length === 0) {
-            c.innerHTML = `<div class="ds-empty"><i class="fa-solid fa-circle-plus" style="font-size:24px"></i><span>还没有属性，请在「配置」中添加</span></div>`;
+            c.innerHTML = `<div class="ds-empty"><i class="fa-solid fa-circle-plus" style="font-size:24px"></i><span>还没有属性，请在「配置」中添加或选择模板</span></div>`;
             return;
         }
         c.innerHTML = attrs.map(a => {
             const val = getVarNum(a.key);
             const pct = a.max > a.min ? Math.max(0, Math.min(100, ((val - a.min) / (a.max - a.min)) * 100)) : 0;
-            const stage = [...a.stages].sort((x, y) => y.threshold - x.threshold).find(st => val >= st.threshold);
-            const stageHtml = stage ? `<div class="ds-stage-desc">${esc(stage.label)}：${esc(stage.description)}</div>` : '';
-            return `<div class="ds-card"><div class="ds-card-head"><i class="fa-solid ${esc(a.icon)} ds-card-icon"></i><span class="ds-card-label">${esc(a.label)}</span><span class="ds-card-val">${val}</span><span class="ds-card-max">/${a.max}</span></div><div class="ds-progress-track"><div class="ds-progress-fill" style="width:${pct}%"></div></div>${stageHtml}<div class="ds-card-controls"><button class="ds-btn-step" data-key="${esc(a.key)}" data-delta="${-a.step}">−${a.step}</button><input type="number" class="ds-val-input" data-key="${esc(a.key)}" value="${val}"/><button class="ds-btn-step" data-key="${esc(a.key)}" data-delta="${a.step}">+${a.step}</button></div></div>`;
+            return `<div class="ds-card"><div class="ds-card-head"><span class="ds-card-label">${esc(a.label)}</span><span class="ds-card-val">${val}</span><span class="ds-card-max">/${a.max}</span></div><div class="ds-progress-track"><div class="ds-progress-fill" style="width:${pct}%"></div></div><div class="ds-card-controls"><button class="ds-btn-step" data-key="${esc(a.key)}" data-delta="${-a.step}">−${a.step}</button><input type="number" class="ds-val-input" data-key="${esc(a.key)}" value="${val}"/><button class="ds-btn-step" data-key="${esc(a.key)}" data-delta="${a.step}">+${a.step}</button></div></div>`;
         }).join('');
     }
     function renderAttrConfigList() {
@@ -139,18 +284,26 @@
             return;
         const attrs = getSettings().attributes;
         c.innerHTML = attrs.length === 0 ? `<div class="ds-empty-sm">暂无属性</div>`
-            : attrs.map((a, i) => `<div class="ds-list-item"><i class="fa-solid ${esc(a.icon)} ds-list-icon"></i><span class="ds-list-label">${esc(a.label)}</span><span class="ds-list-key">${esc(a.key)}</span><span class="ds-list-range">[${a.min}~${a.max}]</span><button class="ds-icon-btn ds-edit-attr" data-idx="${i}"><i class="fa-solid fa-pen"></i></button><button class="ds-icon-btn ds-del ds-del-attr" data-key="${esc(a.key)}"><i class="fa-solid fa-trash"></i></button></div>`).join('');
+            : attrs.map((a, i) => `<div class="ds-list-item"><span class="ds-list-label">${esc(a.label)}</span><span class="ds-list-key">${esc(a.key)}</span><span class="ds-list-range">[${a.min}~${a.max}]</span><button class="ds-icon-btn ds-gen-rule" data-key="${esc(a.key)}" title="AI生成规则"><i class="fa-solid fa-wand-magic-sparkles"></i></button><button class="ds-icon-btn ds-edit-attr" data-idx="${i}" title="编辑"><i class="fa-solid fa-pen"></i></button><button class="ds-icon-btn ds-del ds-del-attr" data-key="${esc(a.key)}" title="删除"><i class="fa-solid fa-trash"></i></button></div>`).join('');
     }
     function renderRuleConfigList() {
         const c = el('ds-rule-config-list');
         if (!c)
             return;
-        const rules = getSettings().rules;
-        c.innerHTML = rules.length === 0 ? `<div class="ds-empty-sm">暂无规则</div>`
-            : rules.map((r, i) => `<div class="ds-list-item"><i class="fa-solid ${r.enabled ? 'fa-toggle-on ds-toggle-on' : 'fa-toggle-off ds-toggle-off'} ds-toggle-rule" data-id="${esc(r.id)}" style="cursor:pointer"></i><span class="ds-list-label">${esc(r.name)}</span><button class="ds-icon-btn ds-edit-rule" data-idx="${i}"><i class="fa-solid fa-pen"></i></button><button class="ds-icon-btn ds-del ds-del-rule" data-id="${esc(r.id)}"><i class="fa-solid fa-trash"></i></button></div>`).join('');
+        const s = getSettings();
+        c.innerHTML = s.rules.length === 0 ? `<div class="ds-empty-sm">暂无规则</div>`
+            : s.rules.map((r, i) => {
+                var _a, _b;
+                const lbl = (_b = (_a = s.attributes.find(a => a.key === r.attrKey)) === null || _a === void 0 ? void 0 : _a.label) !== null && _b !== void 0 ? _b : r.attrKey;
+                const y = r.yesDelta !== 0 ? `是→${r.yesDelta > 0 ? '+' : ''}${r.yesDelta}` : '';
+                const n = r.noDelta !== 0 ? `否→${r.noDelta > 0 ? '+' : ''}${r.noDelta}` : '';
+                const q = r.question.length > 22 ? r.question.slice(0, 22) + '…' : r.question;
+                return `<div class="ds-list-item"><i class="fa-solid ${r.enabled ? 'fa-toggle-on ds-toggle-on' : 'fa-toggle-off ds-toggle-off'} ds-toggle-rule" data-idx="${i}" style="cursor:pointer"></i><span class="ds-list-label" title="${esc(r.question)}">${esc(q)}</span><span class="ds-list-key">${esc(lbl)}</span><span class="ds-list-range">${esc([y, n].filter(Boolean).join(' '))}</span><button class="ds-icon-btn ds-edit-rule" data-idx="${i}"><i class="fa-solid fa-pen"></i></button><button class="ds-icon-btn ds-del ds-del-rule" data-idx="${i}"><i class="fa-solid fa-trash"></i></button></div>`;
+            }).join('');
     }
+    // ── Attr form ─────────────────────────────────────────────────
     function showAttrForm(attr) {
-        editAttr = attr ? JSON.parse(JSON.stringify(attr)) : { key: '', label: '', icon: 'fa-star', min: 0, max: 100, defaultValue: 50, step: 5, stages: [] };
+        editAttr = attr ? JSON.parse(JSON.stringify(attr)) : { key: '', label: '', min: 0, max: 100, defaultValue: 50, step: 5 };
         editAttrIsNew = !attr;
         const form = el('ds-attr-form');
         if (!form)
@@ -160,119 +313,109 @@
         el('ds-attr-key').value = editAttr.key;
         el('ds-attr-key').disabled = !editAttrIsNew;
         el('ds-attr-label').value = editAttr.label;
-        el('ds-attr-icon').value = editAttr.icon;
         el('ds-attr-min').value = String(editAttr.min);
         el('ds-attr-max').value = String(editAttr.max);
         el('ds-attr-default').value = String(editAttr.defaultValue);
         el('ds-attr-step').value = String(editAttr.step);
-        renderStageRows();
         form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
     function hideAttrForm() { editAttr = null; const f = el('ds-attr-form'); if (f)
         f.style.display = 'none'; }
-    function renderStageRows() {
-        const c = el('ds-stage-rows');
-        if (!c || !editAttr)
-            return;
-        c.innerHTML = editAttr.stages.map((s, i) => `<div class="ds-stage-row"><input type="number" class="ds-inp ds-inp-sm" data-sf="threshold" data-idx="${i}" value="${s.threshold}" placeholder="阈值"/><input type="text" class="ds-inp ds-inp-sm" data-sf="label" data-idx="${i}" value="${esc(s.label)}" placeholder="阶段名"/><input type="text" class="ds-inp" data-sf="description" data-idx="${i}" value="${esc(s.description)}" placeholder="行为描述"/><button class="ds-icon-btn ds-del ds-del-stage" data-idx="${i}"><i class="fa-solid fa-xmark"></i></button></div>`).join('');
-    }
-    function collectStageRows() {
-        if (!editAttr)
-            return;
-        document.querySelectorAll('#ds-stage-rows [data-sf]').forEach(inp => {
-            const idx = Number(inp.dataset.idx);
-            const field = inp.dataset.sf;
-            if (!editAttr.stages[idx])
-                return;
-            editAttr.stages[idx][field] = field === 'threshold' ? Number(inp.value) : inp.value;
-        });
-    }
     function saveAttrForm() {
         if (!editAttr)
             return;
-        collectStageRows();
-        editAttr.key = el('ds-attr-key').value.trim();
+        if (editAttrIsNew)
+            editAttr.key = el('ds-attr-key').value.trim();
         editAttr.label = el('ds-attr-label').value.trim();
-        editAttr.icon = el('ds-attr-icon').value.trim() || 'fa-star';
         editAttr.min = Number(el('ds-attr-min').value);
         editAttr.max = Number(el('ds-attr-max').value);
         editAttr.defaultValue = Number(el('ds-attr-default').value);
         editAttr.step = Number(el('ds-attr-step').value) || 1;
-        if (!editAttr.key || !editAttr.label)
+        if (!editAttr.key || !editAttr.label) {
+            if (typeof toastr !== 'undefined')
+                toastr.warning('Key 和名称不能为空', '动态系统');
             return;
-        const s = getSettings();
-        if (editAttrIsNew) {
-            s.attributes.push(editAttr);
         }
+        const s = getSettings();
+        if (editAttrIsNew)
+            s.attributes.push(editAttr);
         else {
-            const idx = s.attributes.findIndex(a => a.key === editAttr.key);
-            if (idx >= 0)
-                s.attributes[idx] = editAttr;
+            const i = s.attributes.findIndex(a => a.key === editAttr.key);
+            if (i >= 0)
+                s.attributes[i] = editAttr;
         }
         saveSettings();
-        updatePrompt(s);
+        updatePrompt();
         hideAttrForm();
         renderAttrConfigList();
         renderAttrCards();
     }
+    // ── Rule form ─────────────────────────────────────────────────
     function showRuleForm(rule) {
-        editRule = rule ? JSON.parse(JSON.stringify(rule)) : { id: Date.now().toString(), name: '', enabled: true, conditionPrompt: '', onMatch: [], onMiss: [], cooldown: 0, lastTriggered: 0 };
+        var _a, _b;
+        const s = getSettings();
+        editRule = rule ? JSON.parse(JSON.stringify(rule)) : { id: Date.now().toString(36), question: '', attrKey: (_b = (_a = s.attributes[0]) === null || _a === void 0 ? void 0 : _a.key) !== null && _b !== void 0 ? _b : '', yesDelta: 5, noDelta: 0, enabled: true };
         editRuleIsNew = !rule;
         const form = el('ds-rule-form');
         if (!form)
             return;
         form.style.display = '';
-        el('ds-rule-form-title').textContent = editRuleIsNew ? '新建规则' : `编辑：${editRule.name}`;
-        el('ds-rule-name').value = editRule.name;
-        el('ds-rule-prompt').value = editRule.conditionPrompt;
-        renderOpRows('match');
-        renderOpRows('miss');
+        el('ds-rule-form-title').textContent = editRuleIsNew ? '新建规则' : '编辑规则';
+        el('ds-rule-question').value = editRule.question;
+        el('ds-rule-yes-delta').value = String(editRule.yesDelta);
+        el('ds-rule-no-delta').value = String(editRule.noDelta);
+        const sel = el('ds-rule-attr');
+        if (sel)
+            sel.innerHTML = s.attributes.map(a => `<option value="${esc(a.key)}" ${a.key === editRule.attrKey ? 'selected' : ''}>${esc(a.label)}</option>`).join('');
         form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
     function hideRuleForm() { editRule = null; const f = el('ds-rule-form'); if (f)
         f.style.display = 'none'; }
-    function renderOpRows(type) {
-        if (!editRule)
-            return;
-        const c = el(`ds-${type}-rows`);
-        if (!c)
-            return;
-        const ops = type === 'match' ? editRule.onMatch : editRule.onMiss;
-        const attrs = getSettings().attributes;
-        c.innerHTML = ops.map((op, i) => `<div class="ds-op-row"><select class="ds-inp" data-ot="${type}" data-idx="${i}">${attrs.map(a => `<option value="${esc(a.key)}" ${a.key === op.key ? 'selected' : ''}>${esc(a.label)}（${esc(a.key)}）</option>`).join('')}</select><input type="number" class="ds-inp ds-inp-sm" data-od="${type}" data-idx="${i}" value="${op.delta}" placeholder="±数值"/><button class="ds-icon-btn ds-del ds-del-op" data-ot="${type}" data-idx="${i}"><i class="fa-solid fa-xmark"></i></button></div>`).join('');
-    }
-    function collectOpRows(type) {
-        if (!editRule)
-            return;
-        const ops = type === 'match' ? editRule.onMatch : editRule.onMiss;
-        document.querySelectorAll(`[data-ot="${type}"]`).forEach(sel => { const idx = Number(sel.dataset.idx); if (ops[idx])
-            ops[idx].key = sel.value; });
-        document.querySelectorAll(`[data-od="${type}"]`).forEach(inp => { const idx = Number(inp.dataset.idx); if (ops[idx])
-            ops[idx].delta = Number(inp.value); });
-    }
     function saveRuleForm() {
+        var _a, _b;
         if (!editRule)
             return;
-        collectOpRows('match');
-        collectOpRows('miss');
-        editRule.name = el('ds-rule-name').value.trim();
-        editRule.conditionPrompt = el('ds-rule-prompt').value;
-        if (!editRule.name)
+        editRule.question = el('ds-rule-question').value.trim();
+        editRule.attrKey = (_b = (_a = (el('ds-rule-attr'))) === null || _a === void 0 ? void 0 : _a.value) !== null && _b !== void 0 ? _b : '';
+        editRule.yesDelta = Number(el('ds-rule-yes-delta').value);
+        editRule.noDelta = Number(el('ds-rule-no-delta').value);
+        if (!editRule.question || !editRule.attrKey) {
+            if (typeof toastr !== 'undefined')
+                toastr.warning('问题和属性不能为空', '动态系统');
             return;
-        const s = getSettings();
-        if (editRuleIsNew) {
-            s.rules.push(editRule);
         }
+        const s = getSettings();
+        if (editRuleIsNew)
+            s.rules.push(editRule);
         else {
-            const idx = s.rules.findIndex(r => r.id === editRule.id);
-            if (idx >= 0)
-                s.rules[idx] = editRule;
+            const i = s.rules.findIndex(r => r.id === editRule.id);
+            if (i >= 0)
+                s.rules[i] = editRule;
         }
         saveSettings();
-        updatePrompt(s);
+        updatePrompt();
         hideRuleForm();
         renderRuleConfigList();
     }
+    // ── Template apply ────────────────────────────────────────────
+    function applyTemplate(tid) {
+        const tpl = TEMPLATES.find(t => t.id === tid);
+        if (!tpl || tpl.attributes.length === 0)
+            return;
+        if (!confirm(`应用模板「${tpl.name}」？将添加 ${tpl.attributes.length} 个属性（跳过同名已有属性）。`))
+            return;
+        const s = getSettings();
+        for (const a of tpl.attributes) {
+            const key = a.label.replace(/[^\w\u4e00-\u9fa5]/g, '') || a.label.charCodeAt(0).toString();
+            if (!s.attributes.find(x => x.key === key))
+                s.attributes.push(Object.assign({ key }, a));
+        }
+        saveSettings();
+        updatePrompt();
+        renderAttrConfigList();
+        renderAttrCards();
+    }
+    // ── Log & renderAll ───────────────────────────────────────────
     function renderLog() {
         const c = el('ds-log-list');
         if (!c)
@@ -299,8 +442,9 @@
         if (tog)
             tog.checked = getSettings().injectPrompt;
     }
+    // ── Event bindings ────────────────────────────────────────────
     function setupEvents() {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r;
         (_a = el('ds-tab-status')) === null || _a === void 0 ? void 0 : _a.addEventListener('click', () => switchTab('status'));
         (_b = el('ds-tab-config')) === null || _b === void 0 ? void 0 : _b.addEventListener('click', () => switchTab('config'));
         (_c = el('ds-tab-history')) === null || _c === void 0 ? void 0 : _c.addEventListener('click', () => switchTab('history'));
@@ -309,131 +453,106 @@
             const s = getSettings();
             s.injectPrompt = (el('ds-inject-toggle')).checked;
             saveSettings();
-            updatePrompt(s);
+            updatePrompt();
         });
-        (_f = el('ds-new-attr-btn')) === null || _f === void 0 ? void 0 : _f.addEventListener('click', () => editAttr ? hideAttrForm() : showAttrForm());
-        (_g = el('ds-attr-config-list')) === null || _g === void 0 ? void 0 : _g.addEventListener('click', e => {
+        // Template buttons
+        (_f = el('ds-template-list')) === null || _f === void 0 ? void 0 : _f.addEventListener('click', e => {
+            const btn = e.target.closest('[data-tid]');
+            if (btn)
+                applyTemplate(btn.dataset.tid);
+        });
+        // Attribute list
+        (_g = el('ds-new-attr-btn')) === null || _g === void 0 ? void 0 : _g.addEventListener('click', () => editAttr ? hideAttrForm() : showAttrForm());
+        (_h = el('ds-attr-config-list')) === null || _h === void 0 ? void 0 : _h.addEventListener('click', e => {
             const t = e.target;
-            const eb = t.closest('.ds-edit-attr');
-            const db = t.closest('.ds-del-attr');
-            if (eb)
-                showAttrForm(getSettings().attributes[Number(eb.dataset.idx)]);
-            else if (db) {
-                const key = db.dataset.key;
-                if (!confirm(`删除属性 "${key}"？`))
+            const edit = t.closest('.ds-edit-attr');
+            const del = t.closest('.ds-del-attr');
+            const gen = t.closest('.ds-gen-rule');
+            if (edit)
+                showAttrForm(getSettings().attributes[Number(edit.dataset.idx)]);
+            else if (del) {
+                const key = del.dataset.key;
+                if (!confirm(`删除属性「${key}」及其所有规则？`))
                     return;
                 const s = getSettings();
                 s.attributes = s.attributes.filter(a => a.key !== key);
+                s.rules = s.rules.filter(r => r.attrKey !== key);
                 saveSettings();
-                updatePrompt(s);
+                updatePrompt();
                 renderAttrConfigList();
                 renderAttrCards();
+                renderRuleConfigList();
             }
+            else if (gen)
+                generateRulesForAttr(gen.dataset.key);
         });
-        (_h = el('ds-add-stage-btn')) === null || _h === void 0 ? void 0 : _h.addEventListener('click', () => { if (!editAttr)
-            return; collectStageRows(); editAttr.stages.push({ threshold: 0, label: '', description: '' }); renderStageRows(); });
-        (_j = el('ds-stage-rows')) === null || _j === void 0 ? void 0 : _j.addEventListener('click', e => {
-            const db = e.target.closest('.ds-del-stage');
-            if (db && editAttr) {
-                collectStageRows();
-                editAttr.stages.splice(Number(db.dataset.idx), 1);
-                renderStageRows();
-            }
-        });
-        (_k = el('ds-save-attr-btn')) === null || _k === void 0 ? void 0 : _k.addEventListener('click', saveAttrForm);
-        (_l = el('ds-cancel-attr-btn')) === null || _l === void 0 ? void 0 : _l.addEventListener('click', hideAttrForm);
-        (_m = el('ds-new-rule-btn')) === null || _m === void 0 ? void 0 : _m.addEventListener('click', () => editRule ? hideRuleForm() : showRuleForm());
-        (_o = el('ds-rule-config-list')) === null || _o === void 0 ? void 0 : _o.addEventListener('click', e => {
+        (_j = el('ds-save-attr-btn')) === null || _j === void 0 ? void 0 : _j.addEventListener('click', saveAttrForm);
+        (_k = el('ds-cancel-attr-btn')) === null || _k === void 0 ? void 0 : _k.addEventListener('click', hideAttrForm);
+        // Rule list
+        (_l = el('ds-new-rule-btn')) === null || _l === void 0 ? void 0 : _l.addEventListener('click', () => editRule ? hideRuleForm() : showRuleForm());
+        (_m = el('ds-rule-config-list')) === null || _m === void 0 ? void 0 : _m.addEventListener('click', e => {
             const t = e.target;
             const tog = t.closest('.ds-toggle-rule');
-            const eb = t.closest('.ds-edit-rule');
-            const db = t.closest('.ds-del-rule');
+            const edit = t.closest('.ds-edit-rule');
+            const del = t.closest('.ds-del-rule');
             if (tog) {
                 const s = getSettings();
-                const r = s.rules.find(r => r.id === tog.dataset.id);
-                if (r) {
-                    r.enabled = !r.enabled;
+                const idx = Number(tog.dataset.idx);
+                if (s.rules[idx]) {
+                    s.rules[idx].enabled = !s.rules[idx].enabled;
                     saveSettings();
-                    updatePrompt(s);
+                    updatePrompt();
                     renderRuleConfigList();
                 }
             }
-            else if (eb)
-                showRuleForm(getSettings().rules[Number(eb.dataset.idx)]);
-            else if (db) {
+            else if (edit)
+                showRuleForm(getSettings().rules[Number(edit.dataset.idx)]);
+            else if (del) {
                 if (!confirm('删除此规则？'))
                     return;
                 const s = getSettings();
-                s.rules = s.rules.filter(r => r.id !== db.dataset.id);
+                s.rules.splice(Number(del.dataset.idx), 1);
                 saveSettings();
-                updatePrompt(s);
+                updatePrompt();
                 renderRuleConfigList();
             }
         });
-        (_p = el('ds-add-match-btn')) === null || _p === void 0 ? void 0 : _p.addEventListener('click', () => { var _a, _b; if (!editRule)
-            return; collectOpRows('match'); editRule.onMatch.push({ key: (_b = (_a = getSettings().attributes[0]) === null || _a === void 0 ? void 0 : _a.key) !== null && _b !== void 0 ? _b : '', delta: 0 }); renderOpRows('match'); });
-        (_q = el('ds-add-miss-btn')) === null || _q === void 0 ? void 0 : _q.addEventListener('click', () => { var _a, _b; if (!editRule)
-            return; collectOpRows('miss'); editRule.onMiss.push({ key: (_b = (_a = getSettings().attributes[0]) === null || _a === void 0 ? void 0 : _a.key) !== null && _b !== void 0 ? _b : '', delta: 0 }); renderOpRows('miss'); });
-        (_r = el('ds-match-rows')) === null || _r === void 0 ? void 0 : _r.addEventListener('click', e => { const db = e.target.closest('.ds-del-op'); if (db && editRule) {
-            collectOpRows('match');
-            editRule.onMatch.splice(Number(db.dataset.idx), 1);
-            renderOpRows('match');
-        } });
-        (_s = el('ds-miss-rows')) === null || _s === void 0 ? void 0 : _s.addEventListener('click', e => { const db = e.target.closest('.ds-del-op'); if (db && editRule) {
-            collectOpRows('miss');
-            editRule.onMiss.splice(Number(db.dataset.idx), 1);
-            renderOpRows('miss');
-        } });
-        (_t = el('ds-save-rule-btn')) === null || _t === void 0 ? void 0 : _t.addEventListener('click', saveRuleForm);
-        (_u = el('ds-cancel-rule-btn')) === null || _u === void 0 ? void 0 : _u.addEventListener('click', hideRuleForm);
-        (_v = el('ds-attr-cards')) === null || _v === void 0 ? void 0 : _v.addEventListener('click', async (e) => {
+        (_o = el('ds-save-rule-btn')) === null || _o === void 0 ? void 0 : _o.addEventListener('click', saveRuleForm);
+        (_p = el('ds-cancel-rule-btn')) === null || _p === void 0 ? void 0 : _p.addEventListener('click', hideRuleForm);
+        // Status card controls
+        (_q = el('ds-attr-cards')) === null || _q === void 0 ? void 0 : _q.addEventListener('click', async (e) => {
             const btn = e.target.closest('.ds-btn-step');
             if (!btn)
                 return;
-            const attr = getSettings().attributes.find(a => a.key === btn.dataset.key);
-            if (attr) {
-                await addVar(attr, Number(btn.dataset.delta), '手动调整');
-                renderAttrCards();
-                renderLog();
-            }
+            await applyDelta(btn.dataset.key, Number(btn.dataset.delta), '手动调整');
+            renderAttrCards();
+            renderLog();
         });
-        (_w = el('ds-attr-cards')) === null || _w === void 0 ? void 0 : _w.addEventListener('change', async (e) => {
+        (_r = el('ds-attr-cards')) === null || _r === void 0 ? void 0 : _r.addEventListener('change', async (e) => {
             const inp = e.target;
             if (!inp.classList.contains('ds-val-input'))
                 return;
-            const attr = getSettings().attributes.find(a => a.key === inp.dataset.key);
-            if (attr) {
-                await setVar(attr, Number(inp.value));
-                renderAttrCards();
-            }
+            await setVarDirect(inp.dataset.key, Number(inp.value));
+            renderAttrCards();
         });
     }
-    function cleanup() {
-        var _a, _b;
-        if (pollTimer) {
-            clearInterval(pollTimer);
-            pollTimer = 0;
+    // ── ST event binding (fixed: use ctx.eventSource) ─────────────
+    function bindSTEvents() {
+        var _a;
+        const ctx = getCtx();
+        const es = ctx === null || ctx === void 0 ? void 0 : ctx.eventSource;
+        const et = (_a = ctx === null || ctx === void 0 ? void 0 : ctx.eventTypes) !== null && _a !== void 0 ? _a : ctx === null || ctx === void 0 ? void 0 : ctx.event_types;
+        if (!es || !et) {
+            console.warn(LOG_PREFIX, 'eventSource 不可用，将在 3 秒后重试');
+            setTimeout(bindSTEvents, 3000);
+            return;
         }
-        const es = window.eventSource;
-        const et = window.event_types;
-        if (es && (et === null || et === void 0 ? void 0 : et.CHARACTER_MESSAGE_RENDERED) && aiMsgHandler) {
-            es.removeListener(et.CHARACTER_MESSAGE_RENDERED, aiMsgHandler);
-            aiMsgHandler = null;
-        }
-        (_b = (_a = getCtx()) === null || _a === void 0 ? void 0 : _a.setExtensionPrompt) === null || _b === void 0 ? void 0 : _b.call(_a, INJECT_KEY, '', 1, 0);
-        window[INIT_FLAG] = false;
-    }
-    renderAll();
-    setupEvents();
-    updatePrompt(getSettings());
-    pollTimer = window.setInterval(() => { renderAttrCards(); renderLog(); }, 3000);
-    const es = window.eventSource;
-    const et = window.event_types;
-    if (es && (et === null || et === void 0 ? void 0 : et.CHARACTER_MESSAGE_RENDERED)) {
-        aiMsgHandler = async (_data) => {
+        aiMsgHandler = async () => {
+            if (generatingRules)
+                return;
             const text = getLastAIMessage();
             if (text) {
-                const changed = await parseReply(text, getSettings());
+                const changed = await parseAndApply(text);
                 if (changed) {
                     renderAttrCards();
                     renderLog();
@@ -441,6 +560,48 @@
             }
         };
         es.on(et.CHARACTER_MESSAGE_RENDERED, aiMsgHandler);
+        genEndedHandler = () => { if (generatingRules)
+            handleRuleGenComplete(); };
+        es.on(et.GENERATION_ENDED, genEndedHandler);
     }
-    window.addEventListener('beforeunload', cleanup);
+    function cleanup() {
+        var _a, _b, _c;
+        if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = 0;
+        }
+        const ctx = getCtx();
+        const es = ctx === null || ctx === void 0 ? void 0 : ctx.eventSource;
+        const et = (_a = ctx === null || ctx === void 0 ? void 0 : ctx.eventTypes) !== null && _a !== void 0 ? _a : ctx === null || ctx === void 0 ? void 0 : ctx.event_types;
+        if (es && et) {
+            if (aiMsgHandler && et.CHARACTER_MESSAGE_RENDERED)
+                es.removeListener(et.CHARACTER_MESSAGE_RENDERED, aiMsgHandler);
+            if (genEndedHandler && et.GENERATION_ENDED)
+                es.removeListener(et.GENERATION_ENDED, genEndedHandler);
+        }
+        (_b = ctx === null || ctx === void 0 ? void 0 : ctx.setExtensionPrompt) === null || _b === void 0 ? void 0 : _b.call(ctx, INJECT_KEY, '', 1, 9000);
+        (_c = ctx === null || ctx === void 0 ? void 0 : ctx.setExtensionPrompt) === null || _c === void 0 ? void 0 : _c.call(ctx, RULEGEN_KEY, '', 0, 0, false, 0);
+        window[INIT_FLAG] = false;
+    }
+    // ── Init ──────────────────────────────────────────────────────
+    function tryInit(retry = 0) {
+        try {
+            if (!getCtx())
+                throw new Error('context not ready');
+            renderAll();
+            setupEvents();
+            updatePrompt();
+            bindSTEvents();
+            pollTimer = window.setInterval(() => { renderAttrCards(); renderLog(); }, 3000);
+            window.addEventListener('beforeunload', cleanup);
+            console.log(LOG_PREFIX, '初始化完成');
+        }
+        catch (err) {
+            if (retry < 20)
+                setTimeout(() => tryInit(retry + 1), 250);
+            else
+                console.error(LOG_PREFIX, '初始化失败:', err);
+        }
+    }
+    tryInit();
 })();
