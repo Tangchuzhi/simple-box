@@ -51,13 +51,12 @@
     const INJECT_KEY_USER = 'smry-user-pad'; // assistant 模式前置 user 占位
     let presets_a = [];
     let summarySession = {
-        active: false,
         start: 0,
         end: 0,
-        filteredLength: 0,
-        fullChat: null,
         generatedMessageId: null,
         pendingPreview: false,
+        hiddenForSummary: [],
+        floorsHidden: false,
     };
     // ── 内置预设（首次加载时自动填充） ────────────────────────────────────────
     const DEFAULT_PRESETS = [
@@ -351,7 +350,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         return getInputVal('smry-wi-bookname').trim();
     }
     function getWiEntryName() {
-        return getInputVal('smry-wi-entryname').trim() || '灵魂典藏馆';
+        return getInputVal('smry-wi-entryname').trim() || '前情概要';
     }
     function getWiMode() {
         const r = document.querySelector('input[name="smry-wi-mode"]:checked');
@@ -550,40 +549,80 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
                 toastr.error('保存世界书失败，请检查控制台。', '总结→世界书');
         }
     }
-    function filterChatByRange(chat, start, end) {
-        return chat.filter((_, index) => index >= start && index <= end);
+    /** Group sorted indices into consecutive ranges for batch slash commands */
+    function groupIntoRanges(indices) {
+        if (indices.length === 0)
+            return [];
+        const sorted = [...indices].sort((a, b) => a - b);
+        const ranges = [];
+        let rangeStart = sorted[0];
+        let prev = sorted[0];
+        for (let i = 1; i < sorted.length; i++) {
+            if (sorted[i] !== prev + 1) {
+                ranges.push({ start: rangeStart, end: prev });
+                rangeStart = sorted[i];
+            }
+            prev = sorted[i];
+        }
+        ranges.push({ start: rangeStart, end: prev });
+        return ranges;
     }
-    function applyChatRangeFilter(start, end) {
+    /** Execute a slash command asynchronously via ST context */
+    async function execSlashCmd(cmd) {
         const ctx = getCtx();
-        if (!Array.isArray(ctx.chat))
-            return;
-        const snapshot = ctx.chat.slice();
-        summarySession = {
-            active: true,
-            start,
-            end,
-            filteredLength: Math.max(0, end - start + 1),
-            fullChat: snapshot,
-            generatedMessageId: null,
-            pendingPreview: true,
-        };
-        console.log(`${LOG_PREFIX} 已注册楼层过滤 ${start}~${end}，总楼层=${snapshot.length}`);
-    }
-    function restoreChatAfterSummary() {
-        var _a, _b;
-        if (!summarySession.active)
-            return;
-        const ctx = getCtx();
-        const chat = Array.isArray(ctx.chat) ? ctx.chat : [];
-        for (let i = chat.length - 1; i >= 0; i--) {
-            if (!((_a = chat[i]) === null || _a === void 0 ? void 0 : _a.is_user) && !((_b = chat[i]) === null || _b === void 0 ? void 0 : _b.is_system)) {
-                summarySession.generatedMessageId = i;
-                break;
+        try {
+            if (typeof ctx.executeSlashCommandsWithOptions === 'function') {
+                await ctx.executeSlashCommandsWithOptions(cmd);
+            }
+            else {
+                callSlashCommand(cmd);
+                await delay(100);
             }
         }
-        summarySession.fullChat = null;
-        summarySession.active = false;
-        console.log(`${LOG_PREFIX} 总结会话结束，生成消息ID=${summarySession.generatedMessageId}`);
+        catch (err) {
+            console.warn(`${LOG_PREFIX} execSlashCmd 失败，降级: ${cmd}`, err);
+            callSlashCommand(cmd);
+            await delay(100);
+        }
+    }
+    /**
+     * Hide all floors OUTSIDE [start, end] for the summary session.
+     * Only records floors that were currently visible, so pre-existing hidden
+     * floors are not touched on restore.
+     */
+    async function hideFloorsForSummary(start, end) {
+        var _a;
+        const ctx = getCtx();
+        const chatLength = Array.isArray(ctx.chat) ? ctx.chat.length : 0;
+        if (chatLength === 0)
+            return;
+        const toHide = [];
+        for (let i = 0; i < chatLength; i++) {
+            if ((i < start || i > end) && ((_a = ctx.chat[i]) === null || _a === void 0 ? void 0 : _a.is_system) !== true) {
+                toHide.push(i);
+            }
+        }
+        summarySession.hiddenForSummary = toHide;
+        summarySession.floorsHidden = true;
+        if (start > 0) {
+            await execSlashCmd(`/hide 0-${start - 1}`);
+        }
+        if (end < chatLength - 1) {
+            await execSlashCmd(`/hide ${end + 1}-${chatLength - 1}`);
+        }
+        console.log(`${LOG_PREFIX} 已隐藏范围外楼层，共 ${toHide.length} 条（${start}~${end} 保持可见）`);
+    }
+    /** Restore only the floors that hideFloorsForSummary hid, preserving pre-existing hidden floors. */
+    async function restoreHiddenFloorsForSummary() {
+        if (!summarySession.floorsHidden)
+            return;
+        const ranges = groupIntoRanges(summarySession.hiddenForSummary);
+        for (const r of ranges) {
+            await execSlashCmd(`/unhide ${r.start}-${r.end}`);
+        }
+        summarySession.hiddenForSummary = [];
+        summarySession.floorsHidden = false;
+        console.log(`${LOG_PREFIX} 已恢复总结临时隐藏楼层`);
     }
     function getLatestAiMessageInfo() {
         var _a;
@@ -625,8 +664,9 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
                 console.warn(`${LOG_PREFIX} 删除本次总结消息失败:`, err);
             }
         }
+        await restoreHiddenFloorsForSummary();
         if (shouldHideSourceFloors()) {
-            callSlashCommand(`/hide ${summarySession.start}-${summarySession.end}`);
+            await execSlashCmd(`/hide ${summarySession.start}-${summarySession.end}`);
         }
         try {
             await ctx.saveChat();
@@ -657,26 +697,9 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         setPreviewText('');
         setPreviewStatus('待生成');
         summarySession.generatedMessageId = null;
-    }
-    function handleChatCompletionPromptReady(eventData) {
-        if (!summarySession.active || !Array.isArray(eventData.chat))
-            return;
-        const { start, end, fullChat } = summarySession;
-        if (!fullChat)
-            return;
-        let floorIndex = 0;
-        eventData.chat = eventData.chat.filter((msg) => {
-            var _a;
-            const role = String((_a = msg === null || msg === void 0 ? void 0 : msg.role) !== null && _a !== void 0 ? _a : '').toLowerCase();
-            if (role === 'system')
-                return true;
-            const idx = floorIndex++;
-            if (idx < fullChat.length) {
-                return idx >= start && idx <= end;
-            }
-            return true;
-        });
-        console.log(`${LOG_PREFIX} 已过滤提示词楼层 ${start}~${end}`);
+        if (summarySession.floorsHidden) {
+            restoreHiddenFloorsForSummary();
+        }
     }
     function bindSummaryEvents() {
         var _a;
@@ -685,7 +708,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         const eventTypes = (_a = ctx.eventTypes) !== null && _a !== void 0 ? _a : ctx.event_types;
         if (!eventSource || !eventTypes)
             return;
-        eventSource.on(eventTypes.CHAT_COMPLETION_PROMPT_READY, handleChatCompletionPromptReady);
         eventSource.on(eventTypes.STREAM_TOKEN_RECEIVED, (text) => {
             if (!summarySession.pendingPreview || typeof text !== 'string')
                 return;
@@ -701,7 +723,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
                 return;
             summarySession.pendingPreview = false;
             await delay(200);
-            restoreChatAfterSummary();
             updatePreviewFromLatestMessage();
             const el = document.getElementById('smry-preview');
             if (el)
@@ -711,7 +732,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             if (!summarySession.pendingPreview)
                 return;
             summarySession.pendingPreview = false;
-            restoreChatAfterSummary();
             setPreviewStatus('生成已停止');
             const el = document.getElementById('smry-preview');
             if (el)
@@ -737,20 +757,31 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
                 toastr.warning(err.message, '总结');
             return;
         }
-        clearPreview();
+        setPreviewText('');
         setPreviewStatus(isReroll ? '正在重ROLL' : '生成中');
+        if (!isReroll)
+            summarySession.generatedMessageId = null;
         // 构建注入内容（包含楼层范围说明）
         const floorNote = `「当前总结范围：第 ${range.start} 楼 ～ 第 ${range.end} 楼，请仅基于此范围内的聊天记录进行总结」`;
         const fullPrompt = `${floorNote}\n\n${promptA}`;
-        // 第一步：静默注入 A+B（ephemeral，生成后自动清除）
+        // 静默注入 A+B（ephemeral，生成后自动清除）
         injectContextPrompt(INJECT_KEY_AB, fullPrompt, true);
-        applyChatRangeFilter(range.start, range.end);
+        // 首次执行：隐藏范围外楼层，使 AI 上下文仅包含 X~Y
+        if (!isReroll) {
+            if (summarySession.floorsHidden) {
+                await restoreHiddenFloorsForSummary();
+            }
+            summarySession.start = range.start;
+            summarySession.end = range.end;
+            await hideFloorsForSummary(range.start, range.end);
+        }
+        summarySession.pendingPreview = true;
         if (typeof toastr !== 'undefined') {
             toastr.info(`总结已启动（楼层 ${range.start} ～ ${range.end}，${launchRole} 模式）`, '总结', { timeOut: 4000 });
         }
         // 等待注入生效
         await delay(200);
-        // 第二步：按 C 选项触发
+        // 按 C 选项触发
         const roleNum = launchRole === 'assistant' ? ROLE_ASSISTANT : ROLE_SYSTEM;
         if (launchRole === 'assistant') {
             injectChatTrigger(INJECT_KEY_USER, '（总结任务触发）', ROLE_USER, true);
