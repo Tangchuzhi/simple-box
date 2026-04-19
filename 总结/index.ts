@@ -121,7 +121,7 @@
 <janusdiary>
 [角色1]
 ◆ 人生履历
-YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 事件1的精炼总结（必须包含:地点、所有关键参与人物、起因、核心经过、关键转折、最终结局，以及此事对该角色造成的永久性改变。不少于150字）
+YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 事件1的精炼总结（必须包含:地点、所有关键参与人物、起因、核心经过、关键转折、最终结局，以及此事对该角色造成的永久性改变。不少于100字）
 YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精炼总结
 ...etc.
 ◆ 人物关系
@@ -186,7 +186,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 <janusdiary>
 [角色1]
 ◆ 人生履历
-YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 事件1的精炼总结（必须包含:地点、所有关键参与人物、起因、核心经过、关键转折、最终结局，以及此事对该角色造成的永久性改变。不少于150字）
+YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 事件1的精炼总结（必须包含:地点、所有关键参与人物、起因、核心经过、关键转折、最终结局，以及此事对该角色造成的永久性改变。不少于100字）
 YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精炼总结
 ...etc.
 ◆ 人物关系
@@ -1116,11 +1116,26 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         const r = document.querySelector<HTMLInputElement>(`input[name="smry-launch-role"][value="${savedRole}"]`);
         if (r) r.checked = true;
 
-        // 预设列表（首次加载时自动填入内置预设）
+        // 预设列表（首次加载时自动填入内置预设，后续按名称同步内置预设的 prompt）
         presets_a = loadJSON<SummaryPreset[]>(SK_PRESETS_A, []);
         if (presets_a.length === 0) {
             presets_a = DEFAULT_PRESETS.map(p => ({ ...p }));
             saveJSON(SK_PRESETS_A, presets_a);
+        } else {
+            let dirty = false;
+            for (const def of DEFAULT_PRESETS) {
+                const existing = presets_a.find(p => p.name === def.name);
+                if (existing) {
+                    if (existing.prompt !== def.prompt) {
+                        existing.prompt = def.prompt;
+                        dirty = true;
+                    }
+                } else {
+                    presets_a.push({ ...def });
+                    dirty = true;
+                }
+            }
+            if (dirty) saveJSON(SK_PRESETS_A, presets_a);
         }
         refreshPresetSelect('A');
 
