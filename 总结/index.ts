@@ -95,7 +95,7 @@
     // ── 内置预设（首次加载时自动填充） ────────────────────────────────────────
     const DEFAULT_PRESETS: SummaryPreset[] = [
         {
-            name: 'Janus-灵魂典藏馆-事件总结',
+            name: 'Janus-灵魂典藏馆',
             prompt:
 `Janus, pause all narrative and role-playing. **Generate incremental [Soul Archives] covering ONLY new events since the last archive update.** Based on <soul_world> + <chat_history> content, generate [Soul Archives].
 
