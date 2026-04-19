@@ -90,9 +90,6 @@ jQuery(() => {
                 <button class="fs-tab-btn" data-tab="fs-summary-content">
                     <i class="fa-solid fa-scroll"></i> 总结
                 </button>
-                <button class="fs-tab-btn" data-tab="fs-dynamic-content">
-                    <i class="fa-solid fa-gauge-high"></i> 动态系统
-                </button>
             </div>
             <div class="fs-content-area" id="fs-floor-hide-content">
                 <div style="text-align: center; padding: 20px; color: var(--SmartThemeTextColor); opacity: 0.6;">
@@ -104,12 +101,6 @@ jQuery(() => {
                 <div style="text-align: center; padding: 20px; color: var(--SmartThemeTextColor); opacity: 0.6;">
                     <i class="fa-solid fa-spinner fa-spin"></i>
                     <p style="margin: 8px 0 0; font-size: 12px;">正在加载总结...</p>
-                </div>
-            </div>
-            <div class="fs-content-area" id="fs-dynamic-content" style="display:none">
-                <div style="text-align: center; padding: 20px; color: var(--SmartThemeTextColor); opacity: 0.6;">
-                    <i class="fa-solid fa-spinner fa-spin"></i>
-                    <p style="margin: 8px 0 0; font-size: 12px;">正在加载动态系统...</p>
                 </div>
             </div>
         </div>
@@ -158,9 +149,5 @@ jQuery(() => {
         setTimeout(() => {
             loadFeatureModule('总结', 'fs-summary-content');
         }, 700);
-        // 加载「动态系统」功能子模块
-        setTimeout(() => {
-            loadFeatureModule('动态系统', 'fs-dynamic-content');
-        }, 900);
     }, 2000);
 });
