@@ -57,6 +57,10 @@
         pendingPreview: false,
         hiddenForSummary: [],
         floorsHidden: false,
+        compressionMode: false,
+        compressionWiBook: '',
+        compressionWiEntryKey: null,
+        compressionWiEntryWasDisabled: false,
     };
     // ── 内置预设（首次加载时自动填充） ────────────────────────────────────────
     const DEFAULT_PRESETS = [
@@ -121,10 +125,10 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         },
         {
             name: 'Janus-灵魂典藏馆-档案压缩',
-            prompt: `Janus, pause all narrative and role-playing. Based on <soul_world> + <chat_history> content, compress existing [Soul Archives]. **This response should only contain <thinking> and compressed soul archives.**
+            prompt: `Janus, pause all narrative and role-playing. Based on the [Soul Archives] provided in <soul_archives>, compress the existing archives. **This response should only contain <thinking> and compressed soul archives.**
 
 **Process (<thinking> must be strictly generated):**
-1. Confirm execution mode: Archive compression mode - <chat_history> entire content consists of [Soul Archives] with no plot content whatsoever
+1. Confirm execution mode: Archive compression mode - the <soul_archives> block contains all [Soul Archives] to be compressed, with no plot content
 2. Identify all characters from existing archives that need compression, totaling N characters
 3. Apply compression principles to reduce redundancy while maintaining essential information
 4. Commit to strictly following [Core Principles], [Archive Format], and [Archive Compression Principles]
@@ -470,7 +474,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     /**
      * Read the last AI message, optionally extract <janusdiary>, then write to world info.
      */
-    async function saveToWorldInfo(contentOverride) {
+    async function saveToWorldInfo(contentOverride, forceOverwrite = false) {
         var _a, _b, _c;
         const ctx = getCtx();
         // ── Resolve world book name ──────────────────────────────
@@ -517,7 +521,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         if (existingUid !== undefined) {
             const entry = data.entries[existingUid];
             normalizeWiEntry(entry);
-            if (getWiMode() === 'overwrite') {
+            if (getWiMode() === 'overwrite' || forceOverwrite) {
                 entry.content = content;
             }
             else {
@@ -624,6 +628,40 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         summarySession.floorsHidden = false;
         console.log(`${LOG_PREFIX} 已恢复总结临时隐藏楼层`);
     }
+    async function hideAllFloorsForCompression() {
+        var _a;
+        const ctx = getCtx();
+        const chatLength = Array.isArray(ctx.chat) ? ctx.chat.length : 0;
+        if (chatLength === 0)
+            return;
+        const toHide = [];
+        for (let i = 0; i < chatLength; i++) {
+            if (((_a = ctx.chat[i]) === null || _a === void 0 ? void 0 : _a.is_system) !== true)
+                toHide.push(i);
+        }
+        summarySession.hiddenForSummary = toHide;
+        summarySession.floorsHidden = true;
+        await execSlashCmd(`/hide 0-${chatLength - 1}`);
+        console.log(`${LOG_PREFIX} 档案压缩：已隐藏全部 ${chatLength} 条楼层`);
+    }
+    async function restoreCompressionWiEntry() {
+        if (!summarySession.compressionWiBook || summarySession.compressionWiEntryKey === null)
+            return;
+        try {
+            const ctx = getCtx();
+            const data = await ctx.loadWorldInfo(summarySession.compressionWiBook);
+            if (data && summarySession.compressionWiEntryKey in data.entries) {
+                data.entries[summarySession.compressionWiEntryKey].disable = summarySession.compressionWiEntryWasDisabled;
+                await ctx.saveWorldInfo(summarySession.compressionWiBook, data, true);
+            }
+        }
+        catch (err) {
+            console.warn(`${LOG_PREFIX} 恢复世界书条目状态失败:`, err);
+        }
+        summarySession.compressionWiBook = '';
+        summarySession.compressionWiEntryKey = null;
+        summarySession.compressionWiEntryWasDisabled = false;
+    }
     function getLatestAiMessageInfo() {
         var _a;
         const ctx = getCtx();
@@ -654,8 +692,14 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
                 toastr.warning('当前没有可写入世界书的总结预览。', '总结');
             return;
         }
-        await saveToWorldInfo(preview);
         const ctx = getCtx();
+        if (summarySession.compressionMode) {
+            await restoreCompressionWiEntry();
+            await saveToWorldInfo(preview, true);
+        }
+        else {
+            await saveToWorldInfo(preview);
+        }
         if (summarySession.generatedMessageId !== null) {
             try {
                 await ctx.deleteMessage(summarySession.generatedMessageId);
@@ -665,7 +709,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             }
         }
         await restoreHiddenFloorsForSummary();
-        if (shouldHideSourceFloors()) {
+        if (!summarySession.compressionMode && shouldHideSourceFloors()) {
             await execSlashCmd(`/hide ${summarySession.start}-${summarySession.end}`);
         }
         try {
@@ -677,6 +721,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         setPreviewStatus('已写入世界书');
         setPreviewText('');
         summarySession.generatedMessageId = null;
+        summarySession.compressionMode = false;
     }
     async function rerollSummary() {
         const ctx = getCtx();
@@ -691,15 +736,22 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         setPreviewText('');
         setPreviewStatus('正在重ROLL');
         summarySession.generatedMessageId = null;
-        await executeSummary(true);
+        if (summarySession.compressionMode) {
+            await executeArchiveCompression(true);
+        }
+        else {
+            await executeSummary(true);
+        }
     }
     function clearPreview() {
         setPreviewText('');
         setPreviewStatus('待生成');
         summarySession.generatedMessageId = null;
+        summarySession.compressionMode = false;
         if (summarySession.floorsHidden) {
             restoreHiddenFloorsForSummary();
         }
+        restoreCompressionWiEntry();
     }
     function bindSummaryEvents() {
         var _a;
@@ -736,6 +788,10 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             const el = document.getElementById('smry-preview');
             if (el)
                 el.setAttribute('readonly', '');
+            if (summarySession.compressionMode) {
+                restoreCompressionWiEntry();
+                summarySession.compressionMode = false;
+            }
         });
     }
     // ── 核心执行 ──────────────────────────────────────────────────────────────
@@ -793,6 +849,89 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     }
     function delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+    async function executeArchiveCompression(isReroll = false) {
+        var _a;
+        const ctx = getCtx();
+        const promptA = getInputVal('smry-prompt-a').trim();
+        const launchRole = getLaunchRole();
+        const triggerText = getTriggerText();
+        if (!promptA) {
+            if (typeof toastr !== 'undefined')
+                toastr.warning('请填写总结提示词。', '档案压缩');
+            return;
+        }
+        let bookName = getWiBookName();
+        if (!bookName)
+            bookName = (_a = detectCharacterWorldBook()) !== null && _a !== void 0 ? _a : '';
+        if (!bookName) {
+            if (typeof toastr !== 'undefined')
+                toastr.error('未能检测到世界书，请手动填写世界书名称。', '档案压缩');
+            return;
+        }
+        const entryName = getWiEntryName();
+        let data;
+        try {
+            data = await ctx.loadWorldInfo(bookName);
+            if (!data)
+                throw new Error('世界书加载失败');
+        }
+        catch (err) {
+            console.error(`${LOG_PREFIX} 档案压缩读取世界书失败:`, err);
+            if (typeof toastr !== 'undefined')
+                toastr.error('读取世界书失败，请检查控制台。', '档案压缩');
+            return;
+        }
+        let entryKey;
+        if (isReroll && summarySession.compressionWiEntryKey !== null) {
+            entryKey = summarySession.compressionWiEntryKey;
+        }
+        else {
+            entryKey = Object.keys(data.entries).find((k) => data.entries[k].comment === entryName);
+        }
+        if (!entryKey || !(entryKey in data.entries)) {
+            if (typeof toastr !== 'undefined')
+                toastr.error(`找不到世界书条目「${entryName}」。`, '档案压缩');
+            return;
+        }
+        const archiveContent = data.entries[entryKey].content || '';
+        if (!archiveContent.trim()) {
+            if (typeof toastr !== 'undefined')
+                toastr.warning(`世界书条目「${entryName}」内容为空。`, '档案压缩');
+            return;
+        }
+        setPreviewText('');
+        setPreviewStatus(isReroll ? '正在重ROLL' : '压缩中');
+        if (!isReroll) {
+            summarySession.generatedMessageId = null;
+            summarySession.compressionMode = true;
+            summarySession.compressionWiBook = bookName;
+            summarySession.compressionWiEntryKey = entryKey;
+            summarySession.compressionWiEntryWasDisabled = data.entries[entryKey].disable || false;
+            data.entries[entryKey].disable = true;
+            await ctx.saveWorldInfo(bookName, data, true);
+        }
+        const archiveBlock = `<soul_archives>\n${archiveContent}\n</soul_archives>`;
+        const fullPrompt = `${archiveBlock}\n\n${promptA}`;
+        injectContextPrompt(INJECT_KEY_AB, fullPrompt, true);
+        if (!isReroll) {
+            if (summarySession.floorsHidden)
+                await restoreHiddenFloorsForSummary();
+            await hideAllFloorsForCompression();
+        }
+        summarySession.pendingPreview = true;
+        if (typeof toastr !== 'undefined') {
+            toastr.info(`档案压缩已启动（条目「${entryName}」）`, '档案压缩', { timeOut: 4000 });
+        }
+        await delay(200);
+        const roleNum = launchRole === 'assistant' ? ROLE_ASSISTANT : ROLE_SYSTEM;
+        if (launchRole === 'assistant') {
+            injectChatTrigger(INJECT_KEY_USER, '（档案压缩任务触发）', ROLE_USER, true);
+        }
+        injectChatTrigger(INJECT_KEY_LAUNCH, triggerText, roleNum, true);
+        await delay(200);
+        await triggerGeneration();
+        console.log(`${LOG_PREFIX} 档案压缩已触发，条目：${entryName}`);
     }
     // ── 预设管理 ──────────────────────────────────────────────────────────────
     function refreshPresetSelect(section) {
@@ -960,6 +1099,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             e.value = '';
         persistState();
     });
+    document.addEventListener(`${EVENT_NS}compress`, () => { executeArchiveCompression(); });
     document.addEventListener(`${EVENT_NS}saveToWI`, () => { saveToWorldInfo(); });
     document.addEventListener(`${EVENT_NS}confirmPreview`, () => { finalizeSummaryToWorldInfo(); });
     document.addEventListener(`${EVENT_NS}reroll`, () => { rerollSummary(); });
