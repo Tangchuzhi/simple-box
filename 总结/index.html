@@ -113,17 +113,17 @@
         提示词与触发文本会在 SillyTavern 环境内静默注入；生成出的总结会同步显示在下方预览区，确认后才会写入世界书。
     </div>
 
-    <!-- ── 压缩档案 ──────────────────────────────────────────────── -->
+    <!-- ── 压缩总结 ──────────────────────────────────────────────── -->
     <button
         class="smry-compress-btn"
         onclick="document.dispatchEvent(new CustomEvent('Summary_compress'))"
         title="直接读取世界书总结条目内容进行二次压缩（隐藏全部聊天记录，临时禁用该条目，避免内容重复注入）"
     >
-        <i class="fa-solid fa-compress-arrows-alt"></i> 压缩档案
+        <i class="fa-solid fa-compress-arrows-alt"></i> 压缩总结
     </button>
     <div class="smry-tip-inline smry-compress-tip">
         <i class="fa-solid fa-circle-info"></i>
-        压缩档案：仅读取下方设定的世界书条目内容，隐藏全部聊天楼层，不读取其他世界书/聊天记录。确认预览后会强制覆盖原条目。
+        压缩总结：读取下方设定的世界书条目内容，以 &lt;前情提要&gt; 标签注入提示词，隐藏全部聊天楼层。确认预览后强制覆盖原条目。
     </div>
 
     <div class="smry-divider"></div>
@@ -794,7 +794,7 @@
     text-align: center;
 }
 
-/* ── 压缩档案按钮 ────────────────────────────────────────────── */
+/* ── 压缩总结按钮 ────────────────────────────────────────────── */
 .smry-compress-btn {
     display: block;
     width: 100%;

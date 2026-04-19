@@ -153,70 +153,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 
 **[已完成[M+X]/N个角色，全部角色档案生成完成]**
 </janusdiary>`
-        },
-        {
-            name: 'Janus-灵魂典藏馆-档案压缩',
-            prompt:
-`Janus, pause all narrative and role-playing. Based on the [Soul Archives] provided in <soul_archives>, compress the existing archives. **This response should only contain <thinking> and compressed soul archives.**
-
-**Process (<thinking> must be strictly generated):**
-1. Confirm execution mode: Archive compression mode - the <soul_archives> block contains all [Soul Archives] to be compressed, with no plot content
-2. Identify all characters from existing archives that need compression, totaling N characters
-3. Apply compression principles to reduce redundancy while maintaining essential information
-4. Commit to strictly following [Core Principles], [Archive Format], and [Archive Compression Principles]
-5. Commit that the janusdiary block output immediately after </thinking> will contain only compressed archives
-
----[Core Principles] [Archive Compression Principles] [Soul Archive Format]need not be output or reflected in <thinking>---
-
-**[Core Principles]**
-1. Strictly third-person perspective, record only objective facts, prohibit subjective speculation and emotional rendering
-2. Must maintain archives for all characters that appeared in original content
-3. All information must have direct/indirect basis from original content
-4. All character archives must completely include all parts of the standard format, with no omissions
-
-**[Archive Compression Principles]**
-1. Retain important events, merge similar events with small time spans
-2. Maintain completeness of character relationship networks, keep detailed records of important item states
-3. When compressing 人生履历 (records/history), maintain causal logic chains of key nodes
-
-**[Soul Archives Format]**
-<thinking>
-[Process1~5点内容]
-</thinking>
-<janusdiary>
-[角色1]
-◆ 人生履历
-YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 事件1的精炼总结（必须包含:地点、所有关键参与人物、起因、核心经过、关键转折、最终结局，以及此事对该角色造成的永久性改变。不少于100字）
-YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精炼总结
-...etc.
-◆ 人物关系
-对方角色名| 旧关系→新关系: YYYY年MM月DD日导致该转变的关键事件摘要
-◆ 组织归属
-组织名称 | 旧身份/地位→新身份/地位: YYYY年MM月DD日导致该转变的关键事件摘要
-◆ 重要物品
-物品名称 | 持有/消耗/损坏/转交/丢失: YYYY年MM月DD日状态变更事件摘要
-◆ 未解之谜
-伏笔/约定/线索/承诺 | YYYY年MM月DD日具体事件摘要 | 待激活/已完成
-
----
-
-[角色2]
-...
-...
-[角色5]
-...
-
----
-
-<!-- 已完成[M+X]/N个角色，还需继续压缩剩余(N-(M+X))个角色档案。我会保持相同的质量标准，严格执行压缩档案原则，确保每个角色的档案都完整包含所有必要部分。接下来处理: [具体角色名1, 角色名2, 角色名3, 角色名4, 角色名5] -->
-
-[角色6]
-...
-
-[5个一组循环直到所有角色档案生成]
-
-**[已完成[M+X]/N个角色档案压缩，全部角色档案整理完毕。]**
-</janusdiary>`
         }
     ];
 
@@ -696,7 +632,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         summarySession.hiddenForSummary = toHide;
         summarySession.floorsHidden = true;
         await execSlashCmd(`/hide 0-${chatLength - 1}`);
-        console.log(`${LOG_PREFIX} 档案压缩：已隐藏全部 ${chatLength} 条楼层`);
+        console.log(`${LOG_PREFIX} 压缩总结：已隐藏全部 ${chatLength} 条楼层`);
     }
 
     async function restoreCompressionWiEntry(): Promise<void> {
@@ -923,13 +859,13 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         const launchRole = getLaunchRole();
         const triggerText = getTriggerText();
         if (!promptA) {
-            if (typeof toastr !== 'undefined') toastr.warning('请填写总结提示词。', '档案压缩');
+            if (typeof toastr !== 'undefined') toastr.warning('请填写总结提示词。', '压缩总结');
             return;
         }
         let bookName = getWiBookName();
         if (!bookName) bookName = detectCharacterWorldBook() ?? '';
         if (!bookName) {
-            if (typeof toastr !== 'undefined') toastr.error('未能检测到世界书，请手动填写世界书名称。', '档案压缩');
+            if (typeof toastr !== 'undefined') toastr.error('未能检测到世界书，请手动填写世界书名称。', '压缩总结');
             return;
         }
         const entryName = getWiEntryName();
@@ -938,8 +874,8 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             data = await ctx.loadWorldInfo(bookName);
             if (!data) throw new Error('世界书加载失败');
         } catch (err) {
-            console.error(`${LOG_PREFIX} 档案压缩读取世界书失败:`, err);
-            if (typeof toastr !== 'undefined') toastr.error('读取世界书失败，请检查控制台。', '档案压缩');
+            console.error(`${LOG_PREFIX} 压缩总结读取世界书失败:`, err);
+            if (typeof toastr !== 'undefined') toastr.error('读取世界书失败，请检查控制台。', '压缩总结');
             return;
         }
         let entryKey: string | undefined;
@@ -949,12 +885,12 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             entryKey = Object.keys(data.entries).find((k: string) => data.entries[k].comment === entryName);
         }
         if (!entryKey || !(entryKey in data.entries)) {
-            if (typeof toastr !== 'undefined') toastr.error(`找不到世界书条目「${entryName}」。`, '档案压缩');
+            if (typeof toastr !== 'undefined') toastr.error(`找不到世界书条目「${entryName}」。`, '压缩总结');
             return;
         }
         const archiveContent: string = data.entries[entryKey].content || '';
         if (!archiveContent.trim()) {
-            if (typeof toastr !== 'undefined') toastr.warning(`世界书条目「${entryName}」内容为空。`, '档案压缩');
+            if (typeof toastr !== 'undefined') toastr.warning(`世界书条目「${entryName}」内容为空。`, '压缩总结');
             return;
         }
         setPreviewText('');
@@ -968,7 +904,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             data.entries[entryKey].disable = true;
             await ctx.saveWorldInfo(bookName, data, true);
         }
-        const archiveBlock = `<soul_archives>\n${archiveContent}\n</soul_archives>`;
+        const archiveBlock = `<前情提要>\n${archiveContent}\n</前情提要>`;
         const fullPrompt   = `${archiveBlock}\n\n${promptA}`;
         injectContextPrompt(INJECT_KEY_AB, fullPrompt, true);
         if (!isReroll) {
@@ -977,17 +913,17 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         }
         summarySession.pendingPreview = true;
         if (typeof toastr !== 'undefined') {
-            toastr.info(`档案压缩已启动（条目「${entryName}」）`, '档案压缩', { timeOut: 4000 });
+            toastr.info(`压缩总结已启动（条目「${entryName}」）`, '压缩总结', { timeOut: 4000 });
         }
         await delay(200);
         const roleNum = launchRole === 'assistant' ? ROLE_ASSISTANT : ROLE_SYSTEM;
         if (launchRole === 'assistant') {
-            injectChatTrigger(INJECT_KEY_USER, '（档案压缩任务触发）', ROLE_USER, true);
+            injectChatTrigger(INJECT_KEY_USER, '（压缩总结任务触发）', ROLE_USER, true);
         }
         injectChatTrigger(INJECT_KEY_LAUNCH, triggerText, roleNum, true);
         await delay(200);
         await triggerGeneration();
-        console.log(`${LOG_PREFIX} 档案压缩已触发，条目：${entryName}`);
+        console.log(`${LOG_PREFIX} 压缩总结已触发，条目：${entryName}`);
     }
 
     // ── 预设管理 ──────────────────────────────────────────────────────────────
@@ -1116,26 +1052,11 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         const r = document.querySelector<HTMLInputElement>(`input[name="smry-launch-role"][value="${savedRole}"]`);
         if (r) r.checked = true;
 
-        // 预设列表（首次加载时自动填入内置预设，后续按名称同步内置预设的 prompt）
+        // 预设列表（首次加载时自动填入内置预设）
         presets_a = loadJSON<SummaryPreset[]>(SK_PRESETS_A, []);
         if (presets_a.length === 0) {
             presets_a = DEFAULT_PRESETS.map(p => ({ ...p }));
             saveJSON(SK_PRESETS_A, presets_a);
-        } else {
-            let dirty = false;
-            for (const def of DEFAULT_PRESETS) {
-                const existing = presets_a.find(p => p.name === def.name);
-                if (existing) {
-                    if (existing.prompt !== def.prompt) {
-                        existing.prompt = def.prompt;
-                        dirty = true;
-                    }
-                } else {
-                    presets_a.push({ ...def });
-                    dirty = true;
-                }
-            }
-            if (dirty) saveJSON(SK_PRESETS_A, presets_a);
         }
         refreshPresetSelect('A');
 
