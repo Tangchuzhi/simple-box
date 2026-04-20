@@ -616,7 +616,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 
         const toHide: number[] = [];
         for (let i = 0; i < chatLength; i++) {
-            if ((i < start || i > end) && ctx.chat[i]?.is_system !== true) {
+            if ((i < start || i > end) && ctx.chat[i]?.is_system !== true && !ctx.chat[i]?.extra?.hidden) {
                 toHide.push(i);
             }
         }

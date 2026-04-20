@@ -554,14 +554,14 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
      * floors are not touched on restore.
      */
     async function hideFloorsForSummary(start, end) {
-        var _a;
+        var _a, _b, _c;
         const ctx = getCtx();
         const chatLength = Array.isArray(ctx.chat) ? ctx.chat.length : 0;
         if (chatLength === 0)
             return;
         const toHide = [];
         for (let i = 0; i < chatLength; i++) {
-            if ((i < start || i > end) && ((_a = ctx.chat[i]) === null || _a === void 0 ? void 0 : _a.is_system) !== true) {
+            if ((i < start || i > end) && ((_a = ctx.chat[i]) === null || _a === void 0 ? void 0 : _a.is_system) !== true && !((_c = (_b = ctx.chat[i]) === null || _b === void 0 ? void 0 : _b.extra) === null || _c === void 0 ? void 0 : _c.hidden)) {
                 toHide.push(i);
             }
         }
