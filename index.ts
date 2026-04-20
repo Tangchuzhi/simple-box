@@ -63,13 +63,25 @@ jQuery(() => {
 
     function renderVersionDisplay(): void {
         const el = document.querySelector<HTMLElement>('.fs-version-display');
-        if (!el) return;
+        const titleEl = document.querySelector<HTMLElement>('#simple-box-settings .inline-drawer-header b');
         if (remoteVersion && localVersion && remoteVersion !== localVersion) {
-            el.textContent = `v${localVersion} → v${remoteVersion} [待更新]`;
-            el.style.color = '#e67e22';
+            if (el) {
+                el.textContent = `v${localVersion} → v${remoteVersion} [待更新]`;
+                el.style.color = '#e67e22';
+            }
+            if (titleEl && !titleEl.querySelector('.sb-new-badge')) {
+                const badge = document.createElement('span');
+                badge.className = 'sb-new-badge';
+                badge.textContent = '新';
+                badge.style.cssText = 'background:#e67e22;color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:5px;vertical-align:middle;font-weight:normal;';
+                titleEl.appendChild(badge);
+            }
         } else {
-            el.textContent = `版本: ${extensionVersion}`;
-            el.style.color = '';
+            if (el) {
+                el.textContent = `版本: ${extensionVersion}`;
+                el.style.color = '';
+            }
+            titleEl?.querySelector('.sb-new-badge')?.remove();
         }
     }
 
@@ -88,7 +100,7 @@ jQuery(() => {
                         el.textContent = '已更新，正在刷新...';
                         el.style.color = '#27ae60';
                     }
-                    setTimeout(() => location.reload(), 2500);
+                    setTimeout(() => location.reload(), 1500);
                 }
             } catch {
                 // ignore
