@@ -19,25 +19,81 @@ jQuery(() => {
 
     // ── 版本管理 ──────────────────────────────────────────────────────────────
 
+    const GITHUB_MANIFEST_URL = 'https://raw.githubusercontent.com/Tangchuzhi/simple-box/main/manifest.json';
+
+    let localVersion  = '';
+    let remoteVersion = '';
+    let versionPollTimer: ReturnType<typeof setInterval> | null = null;
+
     async function loadVersionFromManifest(): Promise<void> {
         try {
             const res = await fetch(`${BASE_URL}/manifest.json`);
             if (res.ok) {
                 const manifest: { version: string } = await res.json();
-                extensionVersion = `v${manifest.version}`;
+                localVersion = manifest.version;
+                extensionVersion = `v${localVersion}`;
             } else {
                 extensionVersion = '读取失败';
+                renderVersionDisplay();
+                return;
             }
         } catch {
             console.log('[简单盒子] 无法读取 manifest 版本信息');
             extensionVersion = '读取失败';
+            renderVersionDisplay();
+            return;
         }
+
+        try {
+            const gh = await fetch(`${GITHUB_MANIFEST_URL}?_=${Date.now()}`);
+            if (gh.ok) {
+                const ghData: { version: string } = await gh.json();
+                remoteVersion = ghData.version;
+            }
+        } catch {
+            console.log('[简单盒子] 无法获取 GitHub 版本信息');
+        }
+
         renderVersionDisplay();
+
+        if (remoteVersion && remoteVersion !== localVersion) {
+            startVersionPolling();
+        }
     }
 
     function renderVersionDisplay(): void {
         const el = document.querySelector<HTMLElement>('.fs-version-display');
-        if (el) el.textContent = `版本: ${extensionVersion}`;
+        if (!el) return;
+        if (remoteVersion && localVersion && remoteVersion !== localVersion) {
+            el.textContent = `v${localVersion} → v${remoteVersion} [待更新]`;
+            el.style.color = '#e67e22';
+        } else {
+            el.textContent = `版本: ${extensionVersion}`;
+            el.style.color = '';
+        }
+    }
+
+    function startVersionPolling(): void {
+        if (versionPollTimer !== null) return;
+        versionPollTimer = setInterval(async () => {
+            try {
+                const res = await fetch(`${BASE_URL}/manifest.json?_=${Date.now()}`);
+                if (!res.ok) return;
+                const data: { version: string } = await res.json();
+                if (data.version !== localVersion) {
+                    clearInterval(versionPollTimer!);
+                    versionPollTimer = null;
+                    const el = document.querySelector<HTMLElement>('.fs-version-display');
+                    if (el) {
+                        el.textContent = '已更新，正在刷新...';
+                        el.style.color = '#27ae60';
+                    }
+                    setTimeout(() => location.reload(), 2500);
+                }
+            } catch {
+                // ignore
+            }
+        }, 8000);
     }
 
     // ── 子模块加载器 ──────────────────────────────────────────────────────────
