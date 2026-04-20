@@ -153,6 +153,29 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 
 **[已完成[M+X]/N个角色，全部角色档案生成完成]**
 </janusdiary>`
+        },
+        {
+            name: '打工喵',
+            prompt:
+`现在停止生成任何正文创作！请调取上下文所有记录，执行阶段性剧情归档总结。
+
+必须遵循以下记录格式：
+
+【总结】
+
+- [时间]: {在此记录该阶段的核心转折。字数不少于50字。重点描述：发生了什么关键冲突、角色做出了什么核心决策、以及环境的变化。}
+- [时间]: {……}
+
+- [待完成事件]: {仅保留至目前为止仍处于"进行中"或"未触发"状态的计划/约定。}
+- [重要物品]: {清点目前角色随身携带或存放在特定位置的关键道具，注明归属权。}
+- [角色成长]: {对比故事开始时，分析各角色（A、B...）在性格、认知或情感关系上的实质性变化，并引用具体事件作为论据。}
+
+————
+
+总结要求:
+1. 逻辑重于流水账：合并细碎的对话日常，聚焦于能够推动剧情发展或改变角色的【关键事件】。
+2. 杜绝虚假描写：事件描述必须基于已发生的客观事实，禁止添加未发生的心理猜测。
+3. 动态关联：确保[角色成长]与上文提到的[时间段事件]有明确的因果关系。`
         }
     ];
 
@@ -1093,7 +1116,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         persistState();
     });
     document.addEventListener(`${EVENT_NS}compress`, () => { executeArchiveCompression(); });
-    document.addEventListener(`${EVENT_NS}saveToWI`, () => { saveToWorldInfo(); });
     document.addEventListener(`${EVENT_NS}confirmPreview`, () => { finalizeSummaryToWorldInfo(); });
     document.addEventListener(`${EVENT_NS}reroll`, () => { rerollSummary(); });
     document.addEventListener(`${EVENT_NS}clearPreview`, () => { clearPreview(); });

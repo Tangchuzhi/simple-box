@@ -94,32 +94,26 @@
         </div>
     </div>
 
-    <!-- ── 执行按钮 ───────────────────────────────────────────────── -->
-    <button
-        class="smry-execute-btn"
-        onclick="document.dispatchEvent(new CustomEvent('Summary_execute'))"
-        title="注入提示词并触发总结生成"
-    >
-        <i class="fa-solid fa-play"></i> 开始总结
-    </button>
-
-    <!-- ── 说明框 ─────────────────────────────────────────────────── -->
+    <!-- ── 执行按钮区 ─────────────────────────────────────────────── -->
+    <div class="smry-action-row">
+        <button
+            class="smry-execute-btn"
+            onclick="document.dispatchEvent(new CustomEvent('Summary_execute'))"
+            title="注入提示词并触发总结生成"
+        >
+            <i class="fa-solid fa-play"></i> 开始总结
+        </button>
+        <button
+            class="smry-compress-btn"
+            onclick="document.dispatchEvent(new CustomEvent('Summary_compress'))"
+            title="直接读取世界书总结条目内容进行二次压缩（隐藏全部聊天记录，临时禁用该条目，避免内容重复注入）"
+        >
+            <i class="fa-solid fa-compress-arrows-alt"></i> 压缩总结
+        </button>
+    </div>
     <div class="smry-tip-box">
         <i class="fa-solid fa-circle-info"></i>
-        提示词与触发文本会在 SillyTavern 环境内静默注入；生成出的总结会同步显示在下方预览区，确认后才会写入世界书。
-    </div>
-
-    <!-- ── 压缩总结 ──────────────────────────────────────────────── -->
-    <button
-        class="smry-compress-btn"
-        onclick="document.dispatchEvent(new CustomEvent('Summary_compress'))"
-        title="直接读取世界书总结条目内容进行二次压缩（隐藏全部聊天记录，临时禁用该条目，避免内容重复注入）"
-    >
-        <i class="fa-solid fa-compress-arrows-alt"></i> 压缩总结
-    </button>
-    <div class="smry-tip-inline smry-compress-tip">
-        <i class="fa-solid fa-circle-info"></i>
-        压缩总结：读取下方设定的世界书条目内容，以 &lt;前情提要&gt; 标签注入提示词，隐藏全部聊天楼层。确认预览后强制覆盖原条目。
+        点击「开始总结」请在下方预览生成的总结。点击「压缩总结」对当前总结内容进行二次总结，确认预览后强制覆盖原条目。
     </div>
 
     <div class="smry-divider"></div>
@@ -209,22 +203,9 @@
                 />
             </div>
 
-            <!-- 手动保存 -->
-            <button
-                class="smry-wi-save-btn"
-                onclick="document.dispatchEvent(new CustomEvent('Summary_saveToWI'))"
-                title="将当前预览或最后一条 AI 回复保存到世界书条目"
-            >
-                <i class="fa-solid fa-book-open"></i> 手动保存回复
-            </button>
-
             <div class="smry-tip-inline" style="margin-top:5px">
                 <i class="fa-solid fa-circle-info"></i>
-                <div>
-                    <div>点击「确认写入世界书」后，会按你当前的覆盖/追加、世界书、条目名设置写入。</div>
-                    <div style="margin-top:4px;">点击「手动保存回复」可将当前预览或最新一条 AI 回复存入世界书，适用于补存总结或保存其他文本。</div>
-                    <div style="margin-top:4px;">新建世界书条目默认 系统@D9999 + 蓝灯常驻，如需修改请手动调整。</div>
-                </div>
+                确认写入时按当前的覆盖/追加模式、世界书及条目名写入。
             </div>
 
         </div>
@@ -795,6 +776,18 @@
     text-align: center;
 }
 
+/* ── 执行按钮区（并排） ──────────────────────────────────────── */
+.smry-action-row {
+    display: flex;
+    gap: 8px;
+    margin: 12px 0 8px;
+}
+
+.smry-action-row > button {
+    flex: 1;
+    margin: 0;
+}
+
 /* ── 压缩总结按钮 ────────────────────────────────────────────── */
 .smry-wi-btn-spacer {
     width: 30px;
@@ -802,10 +795,7 @@
 }
 
 .smry-compress-btn {
-    display: block;
-    width: 100%;
     padding: 10px;
-    margin: 10px 0 6px;
     border: 1px solid rgba(22, 160, 133, 0.45);
     border-radius: 6px;
     background: rgba(22, 160, 133, 0.07);
@@ -836,10 +826,7 @@
 
 /* ── 执行按钮 ─────────────────────────────────────────────────── */
 .smry-execute-btn {
-    display: block;
-    width: 100%;
     padding: 10px;
-    margin: 12px 0 10px;
     border: 1px solid rgba(155, 89, 182, 0.5);
     border-radius: 6px;
     background: rgba(155, 89, 182, 0.1);
