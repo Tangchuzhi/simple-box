@@ -57,6 +57,10 @@
                 title="删除选中的总结"
             ><i class="fa-solid fa-trash"></i></button>
         </div>
+        <div class="smry-tip-inline" style="margin-top:3px">
+            <i class="fa-solid fa-circle-info"></i>
+            内置总结随版本统一更新，如需自定义请另存为其他名称（不得与内置同名）。
+        </div>
     </div>
 
     <div class="smry-divider"></div>
@@ -203,10 +207,6 @@
                 />
             </div>
 
-            <div class="smry-tip-inline" style="margin-top:5px">
-                <i class="fa-solid fa-circle-info"></i>
-                确认写入时按当前的覆盖/追加模式、世界书及条目名写入。
-            </div>
 
         </div>
     </div>
@@ -234,17 +234,12 @@
                 class="smry-icon-btn smry-icon-btn--save smry-preview-btn"
                 onclick="document.dispatchEvent(new CustomEvent('Summary_confirmPreview'))"
                 title="确认当前预览并写入世界书"
-            ><i class="fa-solid fa-check"></i> 确认写入世界书</button>
+            ><i class="fa-solid fa-check"></i> 确认写入</button>
             <button
                 class="smry-icon-btn smry-preview-btn"
                 onclick="document.dispatchEvent(new CustomEvent('Summary_reroll'))"
                 title="删除本次总结并重新生成"
             ><i class="fa-solid fa-rotate-right"></i> 重ROLL</button>
-            <button
-                class="smry-icon-btn smry-icon-btn--del smry-preview-btn"
-                onclick="document.dispatchEvent(new CustomEvent('Summary_clearPreview'))"
-                title="清空当前预览"
-            ><i class="fa-solid fa-eraser"></i> 清空预览</button>
         </div>
     </div>
 

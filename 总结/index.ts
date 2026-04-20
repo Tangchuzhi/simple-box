@@ -984,6 +984,10 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         if (!name?.trim()) return;
         const trimmed = name.trim();
 
+        if (DEFAULT_PRESETS.some(d => d.name === trimmed)) {
+            if (typeof toastr !== 'undefined') toastr.warning(`「${trimmed}」是内置总结名称，请使用其他名称保存。`, '总结');
+            return;
+        }
         const existing = presets.findIndex(p => p.name === trimmed);
         if (existing >= 0) {
             if (!window.confirm(`总结「${trimmed}」已存在，是否覆盖？`)) return;
@@ -1075,10 +1079,22 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         const r = document.querySelector<HTMLInputElement>(`input[name="smry-launch-role"][value="${savedRole}"]`);
         if (r) r.checked = true;
 
-        // 预设列表（首次加载时自动填入内置预设）
+        // 预设列表：内置预设强制同步（覆盖同名旧内容，补充缺失项），用户预设不受影响
         presets_a = loadJSON<SummaryPreset[]>(SK_PRESETS_A, []);
-        if (presets_a.length === 0) {
-            presets_a = DEFAULT_PRESETS.map(p => ({ ...p }));
+        let defaultsChanged = false;
+        DEFAULT_PRESETS.forEach(def => {
+            const idx = presets_a.findIndex(p => p.name === def.name);
+            if (idx >= 0) {
+                if (presets_a[idx].prompt !== def.prompt) {
+                    presets_a[idx].prompt = def.prompt;
+                    defaultsChanged = true;
+                }
+            } else {
+                presets_a.unshift({ ...def });
+                defaultsChanged = true;
+            }
+        });
+        if (defaultsChanged) {
             saveJSON(SK_PRESETS_A, presets_a);
         }
         refreshPresetSelect('A');
@@ -1118,7 +1134,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     document.addEventListener(`${EVENT_NS}compress`, () => { executeArchiveCompression(); });
     document.addEventListener(`${EVENT_NS}confirmPreview`, () => { finalizeSummaryToWorldInfo(); });
     document.addEventListener(`${EVENT_NS}reroll`, () => { rerollSummary(); });
-    document.addEventListener(`${EVENT_NS}clearPreview`, () => { clearPreview(); });
     document.addEventListener(`${EVENT_NS}detectWorldBook`, () => {
         const detected = detectCharacterWorldBook();
         const el = document.getElementById('smry-wi-bookname') as HTMLInputElement | null;
