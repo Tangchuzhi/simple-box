@@ -126,13 +126,23 @@ jQuery(() => {
             }
             const data = await response.json();
             if (data.isUpToDate) {
-                if (typeof toastr !== 'undefined')
-                    toastr.info('已是最新版本，无需更新', '简单盒子');
-                if (el) {
-                    el.textContent = `版本: ${extensionVersion}`;
-                    el.style.color = '';
-                    el.style.cursor = '';
-                    el.onclick = null;
+                try {
+                    const mRes = await fetch(`${BASE_URL}/manifest.json?_=${Date.now()}`);
+                    if (mRes.ok) {
+                        const mData = await mRes.json();
+                        localVersion = mData.version;
+                        extensionVersion = `v${localVersion}`;
+                    }
+                }
+                catch ( /* ignore */_b) { /* ignore */ }
+                renderVersionDisplay();
+                if (localVersion === remoteVersion) {
+                    if (typeof toastr !== 'undefined')
+                        toastr.info('已是最新版本，无需更新', '简单盒子');
+                }
+                else {
+                    if (typeof toastr !== 'undefined')
+                        toastr.warning('git 已是最新提交，但版本号仍有差异', '简单盒子', { timeOut: 4000 });
                 }
             }
             else {
