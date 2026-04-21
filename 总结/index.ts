@@ -199,7 +199,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     }
 
     function getInputVal(id: string): string {
-        const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
+        const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null;
         return el ? el.value : '';
     }
 
@@ -391,6 +391,38 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 
     function shouldHideSourceFloors(): boolean {
         return (document.getElementById('smry-hide-source') as HTMLInputElement | null)?.checked ?? true;
+    }
+
+    async function getWiApi(): Promise<any> {
+        return (Function('return import("/scripts/world-info.js")')() as Promise<any>);
+    }
+
+    async function populateWorldBookSelect(): Promise<void> {
+        const sel = document.getElementById('smry-wi-bookname') as HTMLSelectElement | null;
+        if (!sel) return;
+        const saved = localStorage.getItem(SK_WI_BOOKNAME) ?? '';
+        try {
+            const wiMod = await getWiApi();
+            const names: string[] = Array.isArray(wiMod.world_names) ? wiMod.world_names : [];
+            sel.innerHTML = '<option value="">未选择</option>';
+            names.forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                sel.appendChild(opt);
+            });
+            if (saved) sel.value = saved;
+        } catch (err) {
+            console.warn(`${LOG_PREFIX} 无法获取世界书列表`, err);
+            sel.innerHTML = '<option value="">加载失败</option>';
+            if (saved) {
+                const opt = document.createElement('option');
+                opt.value = saved;
+                opt.textContent = saved;
+                sel.appendChild(opt);
+                sel.value = saved;
+            }
+        }
     }
 
     /** Auto-detect the world book bound to the current character */
@@ -1099,8 +1131,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         }
         refreshPresetSelect('A');
 
-        // 世界书设置
-        set('smry-wi-bookname', SK_WI_BOOKNAME);
+        // 世界书设置（bookname 由 populateWorldBookSelect 异步处理）
         const savedEntry = localStorage.getItem(SK_WI_ENTRY);
         const wiEntryEl = document.getElementById('smry-wi-entryname') as HTMLInputElement | null;
         if (wiEntryEl && savedEntry !== null) wiEntryEl.value = savedEntry;
@@ -1136,8 +1167,14 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     document.addEventListener(`${EVENT_NS}reroll`, () => { rerollSummary(); });
     document.addEventListener(`${EVENT_NS}detectWorldBook`, () => {
         const detected = detectCharacterWorldBook();
-        const el = document.getElementById('smry-wi-bookname') as HTMLInputElement | null;
+        const el = document.getElementById('smry-wi-bookname') as HTMLSelectElement | null;
         if (detected && el) {
+            if (!Array.from(el.options).some(o => o.value === detected)) {
+                const opt = document.createElement('option');
+                opt.value = detected;
+                opt.textContent = detected;
+                el.appendChild(opt);
+            }
             el.value = detected;
             persistState();
             if (typeof toastr !== 'undefined') toastr.success(`检测到世界书：${detected}`, '总结→世界书', { timeOut: 2500 });
@@ -1157,6 +1194,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             if (!ctx) throw new Error('getContext() 返回空值');
 
             restoreState();
+            populateWorldBookSelect();
             bindSummaryEvents();
 
             // 自动持久化

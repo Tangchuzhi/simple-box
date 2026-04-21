@@ -138,12 +138,10 @@
                 <div class="smry-wi-field">
                     <label class="smry-wi-label" for="smry-wi-bookname">世界书</label>
                     <div class="smry-wi-input-wrap">
-                        <input
-                            type="text"
+                        <select
                             id="smry-wi-bookname"
                             class="smry-wi-input"
-                            placeholder="留空则自动检测..."
-                        />
+                        ><option value="">加载世界书列表...</option></select>
                         <button
                             class="smry-icon-btn smry-icon-btn--square"
                             onclick="document.dispatchEvent(new CustomEvent('Summary_detectWorldBook'))"
@@ -683,6 +681,13 @@
     outline: none;
     border-color: var(--SmartThemeQuoteColor, #27ae60);
     box-shadow: 0 0 0 2px rgba(39, 174, 96, 0.15);
+}
+
+select.smry-wi-input {
+    cursor: pointer;
+    padding-right: 4px;
+    font-size: 12px;
+    font-family: inherit;
 }
 
 .smry-wi-opts-row {

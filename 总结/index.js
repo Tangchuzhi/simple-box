@@ -338,6 +338,40 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         var _a, _b;
         return (_b = (_a = document.getElementById('smry-hide-source')) === null || _a === void 0 ? void 0 : _a.checked) !== null && _b !== void 0 ? _b : true;
     }
+    async function getWiApi() {
+        return Function('return import("/scripts/world-info.js")')();
+    }
+    async function populateWorldBookSelect() {
+        var _a;
+        const sel = document.getElementById('smry-wi-bookname');
+        if (!sel)
+            return;
+        const saved = (_a = localStorage.getItem(SK_WI_BOOKNAME)) !== null && _a !== void 0 ? _a : '';
+        try {
+            const wiMod = await getWiApi();
+            const names = Array.isArray(wiMod.world_names) ? wiMod.world_names : [];
+            sel.innerHTML = '<option value="">未选择</option>';
+            names.forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                sel.appendChild(opt);
+            });
+            if (saved)
+                sel.value = saved;
+        }
+        catch (err) {
+            console.warn(`${LOG_PREFIX} 无法获取世界书列表`, err);
+            sel.innerHTML = '<option value="">加载失败</option>';
+            if (saved) {
+                const opt = document.createElement('option');
+                opt.value = saved;
+                opt.textContent = saved;
+                sel.appendChild(opt);
+                sel.value = saved;
+            }
+        }
+    }
     /** Auto-detect the world book bound to the current character */
     function detectCharacterWorldBook() {
         var _a, _b, _c, _d;
@@ -1039,8 +1073,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             saveJSON(SK_PRESETS_A, presets_a);
         }
         refreshPresetSelect('A');
-        // 世界书设置
-        set('smry-wi-bookname', SK_WI_BOOKNAME);
+        // 世界书设置（bookname 由 populateWorldBookSelect 异步处理）
         const savedEntry = localStorage.getItem(SK_WI_ENTRY);
         const wiEntryEl = document.getElementById('smry-wi-entryname');
         if (wiEntryEl && savedEntry !== null)
@@ -1083,6 +1116,12 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         const detected = detectCharacterWorldBook();
         const el = document.getElementById('smry-wi-bookname');
         if (detected && el) {
+            if (!Array.from(el.options).some(o => o.value === detected)) {
+                const opt = document.createElement('option');
+                opt.value = detected;
+                opt.textContent = detected;
+                el.appendChild(opt);
+            }
             el.value = detected;
             persistState();
             if (typeof toastr !== 'undefined')
@@ -1104,6 +1143,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             if (!ctx)
                 throw new Error('getContext() 返回空值');
             restoreState();
+            populateWorldBookSelect();
             bindSummaryEvents();
             // 自动持久化
             ['smry-prompt-a'].forEach(id => { var _a; return (_a = document.getElementById(id)) === null || _a === void 0 ? void 0 : _a.addEventListener('input', persistState); });
