@@ -59,8 +59,11 @@ jQuery(() => {
         const titleEl = document.querySelector('#simple-box-settings .inline-drawer-header b');
         if (remoteVersion && localVersion && remoteVersion !== localVersion) {
             if (el) {
-                el.textContent = `v${localVersion} → v${remoteVersion} [待更新]`;
+                el.textContent = `v${localVersion} → v${remoteVersion} [点击更新]`;
                 el.style.color = '#e67e22';
+                el.style.cursor = 'pointer';
+                el.title = '点击一键更新简单盒子';
+                el.onclick = () => { performUpdate(); };
             }
             if (titleEl && !titleEl.querySelector('.sb-new-badge')) {
                 const badge = document.createElement('span');
@@ -74,8 +77,78 @@ jQuery(() => {
             if (el) {
                 el.textContent = `版本: ${extensionVersion}`;
                 el.style.color = '';
+                el.style.cursor = '';
+                el.title = '';
+                el.onclick = null;
             }
             (_a = titleEl === null || titleEl === void 0 ? void 0 : titleEl.querySelector('.sb-new-badge')) === null || _a === void 0 ? void 0 : _a.remove();
+        }
+    }
+    async function performUpdate() {
+        const el = document.querySelector('.fs-version-display');
+        if (el) {
+            el.textContent = '更新中...';
+            el.style.cursor = 'default';
+            el.style.color = '#27ae60';
+            el.onclick = null;
+        }
+        if (versionPollTimer !== null) {
+            clearInterval(versionPollTimer);
+            versionPollTimer = null;
+        }
+        try {
+            const scriptMod = await Function('return import("/script.js")')();
+            const headers = scriptMod.getRequestHeaders();
+            const response = await fetch('/api/extensions/update', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ extensionName: EXTENSION_NAME, global: false }),
+            });
+            if (!response.ok) {
+                const text = await response.text();
+                if (typeof toastr !== 'undefined')
+                    toastr.error(text || response.statusText, '简单盒子更新失败', { timeOut: 5000 });
+                if (el) {
+                    el.textContent = `v${localVersion} → v${remoteVersion} [点击更新]`;
+                    el.style.color = '#e67e22';
+                    el.style.cursor = 'pointer';
+                    el.onclick = () => { performUpdate(); };
+                }
+                startVersionPolling();
+                return;
+            }
+            const data = await response.json();
+            if (data.isUpToDate) {
+                if (typeof toastr !== 'undefined')
+                    toastr.info('已是最新版本，无需更新', '简单盒子');
+                if (el) {
+                    el.textContent = `版本: ${extensionVersion}`;
+                    el.style.color = '';
+                    el.style.cursor = '';
+                    el.onclick = null;
+                }
+            }
+            else {
+                if (typeof toastr !== 'undefined')
+                    toastr.success('更新成功，即将刷新...', '简单盒子');
+                if (el) {
+                    el.textContent = '已更新，正在刷新...';
+                    el.style.color = '#27ae60';
+                }
+                setTimeout(() => location.reload(), 1500);
+            }
+        }
+        catch (err) {
+            console.error('[简单盒子] 更新失败:', err);
+            if (typeof toastr !== 'undefined')
+                toastr.error('更新失败，请查看控制台', '简单盒子');
+            if (el) {
+                el.textContent = `v${localVersion} → v${remoteVersion} [点击更新]`;
+                el.style.color = '#e67e22';
+                el.style.cursor = 'pointer';
+                el.onclick = () => { performUpdate(); };
+            }
+            startVersionPolling();
         }
     }
     function startVersionPolling() {
@@ -94,6 +167,8 @@ jQuery(() => {
                     if (el) {
                         el.textContent = '已更新，正在刷新...';
                         el.style.color = '#27ae60';
+                        el.style.cursor = 'default';
+                        el.onclick = null;
                     }
                     setTimeout(() => location.reload(), 1500);
                 }
