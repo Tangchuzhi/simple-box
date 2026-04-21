@@ -104,12 +104,18 @@ jQuery(() => {
             versionPollTimer = null;
         }
         try {
-            const scriptMod = await (Function('return import("/script.js")')() as Promise<any>);
+            const [scriptMod, extMod] = await Promise.all([
+                Function('return import("/script.js")')() as Promise<any>,
+                Function('return import("/scripts/extensions.js")')() as Promise<any>,
+            ]);
             const headers = scriptMod.getRequestHeaders();
+            const types: Record<string, string> = extMod.extensionTypes ?? {};
+            const fullId = Object.keys(types).find(id => id === EXTENSION_NAME || id.endsWith(`/${EXTENSION_NAME}`));
+            const isGlobal = fullId ? types[fullId] === 'global' : true;
             const response = await fetch('/api/extensions/update', {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ extensionName: EXTENSION_NAME, global: false }),
+                body: JSON.stringify({ extensionName: EXTENSION_NAME, global: isGlobal }),
             });
             if (!response.ok) {
                 const text = await response.text();

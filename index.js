@@ -85,6 +85,7 @@ jQuery(() => {
         }
     }
     async function performUpdate() {
+        var _a;
         const el = document.querySelector('.fs-version-display');
         if (el) {
             el.textContent = '更新中...';
@@ -97,12 +98,18 @@ jQuery(() => {
             versionPollTimer = null;
         }
         try {
-            const scriptMod = await Function('return import("/script.js")')();
+            const [scriptMod, extMod] = await Promise.all([
+                Function('return import("/script.js")')(),
+                Function('return import("/scripts/extensions.js")')(),
+            ]);
             const headers = scriptMod.getRequestHeaders();
+            const types = (_a = extMod.extensionTypes) !== null && _a !== void 0 ? _a : {};
+            const fullId = Object.keys(types).find(id => id === EXTENSION_NAME || id.endsWith(`/${EXTENSION_NAME}`));
+            const isGlobal = fullId ? types[fullId] === 'global' : true;
             const response = await fetch('/api/extensions/update', {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ extensionName: EXTENSION_NAME, global: false }),
+                body: JSON.stringify({ extensionName: EXTENSION_NAME, global: isGlobal }),
             });
             if (!response.ok) {
                 const text = await response.text();
