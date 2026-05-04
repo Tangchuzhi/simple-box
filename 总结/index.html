@@ -107,19 +107,10 @@
         >
             <i class="fa-solid fa-play"></i> 开始总结
         </button>
-        <button
-            class="smry-compress-btn"
-            onclick="document.dispatchEvent(new CustomEvent('Summary_compress'))"
-            title="直接读取世界书总结条目内容进行二次压缩（隐藏全部聊天记录，临时禁用该条目，避免内容重复注入）"
-        >
-            <i class="fa-solid fa-compress-arrows-alt"></i> 压缩总结
-        </button>
     </div>
     <div class="smry-tip-box">
         <i class="fa-solid fa-circle-info"></i>
-        点击「开始总结」对选定楼层剧情进行总结，请在下方预览生成的总结。<br>
-        <i class="fa-solid fa-circle-info"></i>
-        点击「压缩总结」对现有的总结进行二次总结，确认写入后将强制覆盖原总结内容。
+        点击「开始总结」对选定楼层剧情进行总结，请在下方预览生成的总结。
     </div>
 
     <div class="smry-divider"></div>
@@ -167,6 +158,7 @@
 
             <div class="smry-wi-control-row">
                 <div class="smry-wi-mode-group">
+                    <span class="smry-wi-label smry-wi-label--inline">写入方式</span>
                     <label class="smry-wi-radio">
                         <input type="radio" name="smry-wi-mode" value="overwrite" />
                         <span>覆盖</span>
@@ -176,9 +168,16 @@
                         <span>追加</span>
                     </label>
                 </div>
-                <label class="smry-wi-check smry-wi-check--compact">
+            </div>
+
+            <div class="smry-wi-control-row">
+                <label class="smry-wi-check smry-wi-check--left">
                     <input type="checkbox" id="smry-wi-extract" checked />
                     <span>自动清理思维链</span>
+                </label>
+                <label class="smry-wi-check smry-wi-check--left">
+                    <input type="checkbox" id="smry-hide-source" checked />
+                    <span>写入后隐藏原楼层</span>
                 </label>
             </div>
 
@@ -191,10 +190,6 @@
                         <option value="custom">其他</option>
                     </select>
                 </div>
-                <label class="smry-wi-check smry-wi-check--compact smry-wi-check--left">
-                    <input type="checkbox" id="smry-hide-source" checked />
-                    <span>写入后隐藏原楼层</span>
-                </label>
             </div>
 
             <div class="smry-wi-custom-row">
@@ -240,6 +235,13 @@
                 onclick="document.dispatchEvent(new CustomEvent('Summary_reroll'))"
                 title="删除本次总结并重新生成"
             ><i class="fa-solid fa-rotate-right"></i> 重ROLL</button>
+            <button
+                id="smry-continue-btn"
+                class="smry-icon-btn smry-preview-btn"
+                onclick="document.dispatchEvent(new CustomEvent('Summary_continue'))"
+                title="继续上一次生成（同酒馆继续按钮）"
+                disabled
+            ><i class="fa-solid fa-forward"></i> 继续</button>
         </div>
     </div>
 
@@ -788,42 +790,6 @@ select.smry-wi-input {
 .smry-action-row > button {
     flex: 1;
     margin: 0;
-}
-
-/* ── 压缩总结按钮 ────────────────────────────────────────────── */
-.smry-wi-btn-spacer {
-    width: 30px;
-    flex-shrink: 0;
-}
-
-.smry-compress-btn {
-    padding: 10px;
-    border: 1px solid rgba(22, 160, 133, 0.45);
-    border-radius: 6px;
-    background: rgba(22, 160, 133, 0.07);
-    color: var(--SmartThemeTextColor);
-    font-size: 13px;
-    font-weight: bold;
-    cursor: pointer;
-    letter-spacing: 0.03em;
-    transition: background 0.2s, border-color 0.2s, color 0.2s;
-}
-
-.smry-compress-btn:hover {
-    background: rgba(22, 160, 133, 0.2);
-    border-color: #16a085;
-    color: #1abc9c;
-}
-
-.smry-compress-btn:active {
-    background: rgba(22, 160, 133, 0.32);
-}
-
-.smry-compress-tip {
-    font-size: 11px;
-    line-height: 1.55;
-    opacity: 0.85;
-    margin-bottom: 4px;
 }
 
 /* ── 执行按钮 ─────────────────────────────────────────────────── */

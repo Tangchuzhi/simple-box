@@ -57,10 +57,6 @@
         pendingPreview: false,
         hiddenForSummary: [],
         floorsHidden: false,
-        compressionMode: false,
-        compressionWiBook: '',
-        compressionWiEntryKey: null,
-        compressionWiEntryWasDisabled: false,
     };
     // ── 内置预设（首次加载时自动填充） ────────────────────────────────────────
     const DEFAULT_PRESETS = [
@@ -131,12 +127,12 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 
 【总结】
 
-- [时间]: {在此记录该阶段的核心转折。字数不少于50字。重点描述：发生了什么关键冲突、角色做出了什么核心决策、以及环境的变化。}
+- [时间]: {在此客观记录该阶段的核心事件与对话，禁止文学化修辞，禁止描述角色心情。字数不少于100字。重点描述：发生了什么关键冲突、角色做出了什么核心决策、以及环境的变化。}
 - [时间]: {……}
 
 - [待完成事件]: {仅保留至目前为止仍处于"进行中"或"未触发"状态的计划/约定。}
 - [重要物品]: {清点目前角色随身携带或存放在特定位置的关键道具，注明归属权。}
-- [角色成长]: {对比故事开始时，分析各角色（A、B...）在性格、认知或情感关系上的实质性变化，并引用具体事件作为论据。}
+- [角色成长]: {对比故事开始时，分析各角色（A、B...）在性格、认知或情感关系上的实质性变化，并引用具体事件作为论据，客观记录，禁止文学化修辞，禁止描述角色心情}
 
 ————
 
@@ -621,40 +617,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         summarySession.floorsHidden = false;
         console.log(`${LOG_PREFIX} 已恢复总结临时隐藏楼层`);
     }
-    async function hideAllFloorsForCompression() {
-        var _a;
-        const ctx = getCtx();
-        const chatLength = Array.isArray(ctx.chat) ? ctx.chat.length : 0;
-        if (chatLength === 0)
-            return;
-        const toHide = [];
-        for (let i = 0; i < chatLength; i++) {
-            if (((_a = ctx.chat[i]) === null || _a === void 0 ? void 0 : _a.is_system) !== true)
-                toHide.push(i);
-        }
-        summarySession.hiddenForSummary = toHide;
-        summarySession.floorsHidden = true;
-        await execSlashCmd(`/hide 0-${chatLength - 1}`);
-        console.log(`${LOG_PREFIX} 压缩总结：已隐藏全部 ${chatLength} 条楼层`);
-    }
-    async function restoreCompressionWiEntry() {
-        if (!summarySession.compressionWiBook || summarySession.compressionWiEntryKey === null)
-            return;
-        try {
-            const ctx = getCtx();
-            const data = await ctx.loadWorldInfo(summarySession.compressionWiBook);
-            if (data && summarySession.compressionWiEntryKey in data.entries) {
-                data.entries[summarySession.compressionWiEntryKey].disable = summarySession.compressionWiEntryWasDisabled;
-                await ctx.saveWorldInfo(summarySession.compressionWiBook, data, true);
-            }
-        }
-        catch (err) {
-            console.warn(`${LOG_PREFIX} 恢复世界书条目状态失败:`, err);
-        }
-        summarySession.compressionWiBook = '';
-        summarySession.compressionWiEntryKey = null;
-        summarySession.compressionWiEntryWasDisabled = false;
-    }
     function getLatestAiMessageInfo() {
         var _a;
         const ctx = getCtx();
@@ -686,13 +648,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             return;
         }
         const ctx = getCtx();
-        if (summarySession.compressionMode) {
-            await restoreCompressionWiEntry();
-            await saveToWorldInfo(preview, true);
-        }
-        else {
-            await saveToWorldInfo(preview);
-        }
+        await saveToWorldInfo(preview);
         if (summarySession.generatedMessageId !== null) {
             try {
                 await ctx.deleteMessage(summarySession.generatedMessageId);
@@ -702,7 +658,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             }
         }
         await restoreHiddenFloorsForSummary();
-        if (!summarySession.compressionMode && shouldHideSourceFloors()) {
+        if (shouldHideSourceFloors()) {
             await execSlashCmd(`/hide ${summarySession.start}-${summarySession.end}`);
         }
         try {
@@ -714,7 +670,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         setPreviewStatus('已写入世界书');
         setPreviewText('');
         summarySession.generatedMessageId = null;
-        summarySession.compressionMode = false;
     }
     async function rerollSummary() {
         const ctx = getCtx();
@@ -729,22 +684,32 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         setPreviewText('');
         setPreviewStatus('正在重ROLL');
         summarySession.generatedMessageId = null;
-        if (summarySession.compressionMode) {
-            await executeArchiveCompression(true);
-        }
-        else {
-            await executeSummary(true);
-        }
+        await executeSummary(true);
     }
     function clearPreview() {
         setPreviewText('');
         setPreviewStatus('待生成');
         summarySession.generatedMessageId = null;
-        summarySession.compressionMode = false;
+        updateContinueBtnState();
         if (summarySession.floorsHidden) {
             restoreHiddenFloorsForSummary();
         }
-        restoreCompressionWiEntry();
+    }
+    async function continueSummary() {
+        if (summarySession.generatedMessageId === null) {
+            if (typeof toastr !== 'undefined')
+                toastr.warning('尚无可继续的生成。', '总结');
+            return;
+        }
+        setPreviewStatus('继续生成中...');
+        summarySession.pendingPreview = true;
+        updateContinueBtnState();
+        await execSlashCmd('/continue');
+    }
+    function updateContinueBtnState() {
+        const btn = document.getElementById('smry-continue-btn');
+        if (btn)
+            btn.disabled = summarySession.generatedMessageId === null;
     }
     function bindSummaryEvents() {
         var _a;
@@ -769,6 +734,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             summarySession.pendingPreview = false;
             await delay(200);
             updatePreviewFromLatestMessage();
+            updateContinueBtnState();
             const el = document.getElementById('smry-preview');
             if (el)
                 el.setAttribute('readonly', '');
@@ -778,13 +744,10 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
                 return;
             summarySession.pendingPreview = false;
             setPreviewStatus('生成已停止');
+            updateContinueBtnState();
             const el = document.getElementById('smry-preview');
             if (el)
                 el.setAttribute('readonly', '');
-            if (summarySession.compressionMode) {
-                restoreCompressionWiEntry();
-                summarySession.compressionMode = false;
-            }
         });
     }
     // ── 核心执行 ──────────────────────────────────────────────────────────────
@@ -842,89 +805,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     }
     function delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
-    }
-    async function executeArchiveCompression(isReroll = false) {
-        var _a;
-        const ctx = getCtx();
-        const promptA = getInputVal('smry-prompt-a').trim();
-        const launchRole = getLaunchRole();
-        const triggerText = getTriggerText();
-        if (!promptA) {
-            if (typeof toastr !== 'undefined')
-                toastr.warning('请填写总结提示词。', '压缩总结');
-            return;
-        }
-        let bookName = getWiBookName();
-        if (!bookName)
-            bookName = (_a = detectCharacterWorldBook()) !== null && _a !== void 0 ? _a : '';
-        if (!bookName) {
-            if (typeof toastr !== 'undefined')
-                toastr.error('未能检测到世界书，请手动填写世界书名称。', '压缩总结');
-            return;
-        }
-        const entryName = getWiEntryName();
-        let data;
-        try {
-            data = await ctx.loadWorldInfo(bookName);
-            if (!data)
-                throw new Error('世界书加载失败');
-        }
-        catch (err) {
-            console.error(`${LOG_PREFIX} 压缩总结读取世界书失败:`, err);
-            if (typeof toastr !== 'undefined')
-                toastr.error('读取世界书失败，请检查控制台。', '压缩总结');
-            return;
-        }
-        let entryKey;
-        if (isReroll && summarySession.compressionWiEntryKey !== null) {
-            entryKey = summarySession.compressionWiEntryKey;
-        }
-        else {
-            entryKey = Object.keys(data.entries).find((k) => data.entries[k].comment === entryName);
-        }
-        if (!entryKey || !(entryKey in data.entries)) {
-            if (typeof toastr !== 'undefined')
-                toastr.error(`找不到世界书条目「${entryName}」。`, '压缩总结');
-            return;
-        }
-        const archiveContent = data.entries[entryKey].content || '';
-        if (!archiveContent.trim()) {
-            if (typeof toastr !== 'undefined')
-                toastr.warning(`世界书条目「${entryName}」内容为空。`, '压缩总结');
-            return;
-        }
-        setPreviewText('');
-        setPreviewStatus(isReroll ? '正在重ROLL' : '压缩中');
-        if (!isReroll) {
-            summarySession.generatedMessageId = null;
-            summarySession.compressionMode = true;
-            summarySession.compressionWiBook = bookName;
-            summarySession.compressionWiEntryKey = entryKey;
-            summarySession.compressionWiEntryWasDisabled = data.entries[entryKey].disable || false;
-            data.entries[entryKey].disable = true;
-            await ctx.saveWorldInfo(bookName, data, true);
-        }
-        const archiveBlock = `<前情提要>\n${archiveContent}\n</前情提要>`;
-        const fullPrompt = `${archiveBlock}\n\n${promptA}`;
-        injectContextPrompt(INJECT_KEY_AB, fullPrompt, true);
-        if (!isReroll) {
-            if (summarySession.floorsHidden)
-                await restoreHiddenFloorsForSummary();
-            await hideAllFloorsForCompression();
-        }
-        summarySession.pendingPreview = true;
-        if (typeof toastr !== 'undefined') {
-            toastr.info(`压缩总结已启动（条目「${entryName}」）`, '压缩总结', { timeOut: 4000 });
-        }
-        await delay(200);
-        const roleNum = launchRole === 'assistant' ? ROLE_ASSISTANT : ROLE_SYSTEM;
-        if (launchRole === 'assistant') {
-            injectChatTrigger(INJECT_KEY_USER, '（压缩总结任务触发）', ROLE_USER, true);
-        }
-        injectChatTrigger(INJECT_KEY_LAUNCH, triggerText, roleNum, true);
-        await delay(200);
-        await triggerGeneration();
-        console.log(`${LOG_PREFIX} 压缩总结已触发，条目：${entryName}`);
     }
     // ── 预设管理 ──────────────────────────────────────────────────────────────
     function refreshPresetSelect(section) {
@@ -1109,9 +989,9 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             e.value = '';
         persistState();
     });
-    document.addEventListener(`${EVENT_NS}compress`, () => { executeArchiveCompression(); });
     document.addEventListener(`${EVENT_NS}confirmPreview`, () => { finalizeSummaryToWorldInfo(); });
     document.addEventListener(`${EVENT_NS}reroll`, () => { rerollSummary(); });
+    document.addEventListener(`${EVENT_NS}continue`, () => { continueSummary(); });
     document.addEventListener(`${EVENT_NS}detectWorldBook`, () => {
         const detected = detectCharacterWorldBook();
         const el = document.getElementById('smry-wi-bookname');
