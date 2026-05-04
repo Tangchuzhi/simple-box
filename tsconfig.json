@@ -15,6 +15,7 @@
         "index.ts",
         "隐藏楼层/index.ts",
         "总结/index.ts",
+        "总结的总结/index.ts",
         "types/**/*.d.ts"
     ],
     "exclude": [
