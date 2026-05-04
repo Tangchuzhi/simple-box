@@ -1,0 +1,778 @@
+<div class="cpr-container">
+
+    <!-- ── 压缩素材 ─────────────────────────────────────────────── -->
+    <div class="cpr-section">
+        <div class="cpr-section-hd">
+            <span class="cpr-section-label">
+                <i class="fa-solid fa-layer-group"></i> 压缩素材
+            </span>
+        </div>
+
+        <!-- 世界书浏览器 -->
+        <div class="cpr-browser-hd">
+            <select
+                id="cpr-browse-bookname"
+                class="cpr-select cpr-select--flex"
+                title="选择世界书以浏览其条目"
+                onchange="document.dispatchEvent(new CustomEvent('Cpr_refreshEntries'))"
+            ><option value="">选择世界书...</option></select>
+            <button
+                class="cpr-icon-btn"
+                onclick="document.dispatchEvent(new CustomEvent('Cpr_refreshEntries'))"
+                title="刷新条目列表"
+            ><i class="fa-solid fa-rotate-right"></i></button>
+        </div>
+        <div id="cpr-entry-checklist" class="cpr-entry-checklist">
+            <div class="cpr-entry-empty">选择世界书以浏览条目</div>
+        </div>
+        <div class="cpr-browser-footer">
+            <button
+                class="cpr-add-btn"
+                onclick="document.dispatchEvent(new CustomEvent('Cpr_addChecked'))"
+                title="将勾选的条目加入压缩顺序"
+            ><i class="fa-solid fa-plus"></i> 添加选中条目</button>
+            <label class="cpr-check-all-label">
+                <input type="checkbox" id="cpr-check-all"
+                    onchange="document.dispatchEvent(new CustomEvent('Cpr_toggleCheckAll'))" />
+                全选
+            </label>
+        </div>
+
+        <!-- 压缩顺序 -->
+        <div class="cpr-order-hd">
+            <span class="cpr-section-label" style="font-size:10px;opacity:0.75">
+                <i class="fa-solid fa-sort"></i> 压缩顺序
+            </span>
+            <button
+                class="cpr-icon-btn cpr-icon-btn--del"
+                style="padding:3px 8px;font-size:10px"
+                onclick="document.dispatchEvent(new CustomEvent('Cpr_clearAll'))"
+                title="清空所有条目"
+            ><i class="fa-solid fa-trash"></i> 清空</button>
+        </div>
+        <div id="cpr-entry-list" class="cpr-entry-list">
+            <!-- 条目行由 JS 动态注入 -->
+        </div>
+        <div class="cpr-tip-inline">
+            <i class="fa-solid fa-circle-info"></i>
+            拖动 <i class="fa-solid fa-grip-lines"></i> 调整顺序；条目将按此顺序注入为模拟历史档案。
+        </div>
+    </div>
+
+    <div class="cpr-divider"></div>
+
+    <!-- ── 压缩提示词 ────────────────────────────────────────────── -->
+    <div class="cpr-section">
+        <div class="cpr-section-hd">
+            <span class="cpr-section-label">压缩提示词</span>
+        </div>
+        <textarea
+            id="cpr-prompt"
+            class="cpr-textarea"
+            rows="5"
+            placeholder="输入压缩提示词..."
+        ></textarea>
+        <div class="cpr-preset-row">
+            <select id="cpr-presets" class="cpr-select" title="选择已保存的预设">
+                <option value="">— 选择预设 —</option>
+            </select>
+            <button
+                class="cpr-icon-btn"
+                onclick="document.dispatchEvent(new CustomEvent('Cpr_applyPreset'))"
+                title="加载选中预设到编辑区"
+            ><i class="fa-solid fa-file-import"></i> 加载</button>
+            <button
+                class="cpr-icon-btn cpr-icon-btn--save"
+                onclick="document.dispatchEvent(new CustomEvent('Cpr_savePreset'))"
+                title="将当前提示词另存为预设"
+            ><i class="fa-solid fa-floppy-disk"></i> 保存</button>
+            <button
+                class="cpr-icon-btn cpr-icon-btn--del"
+                onclick="document.dispatchEvent(new CustomEvent('Cpr_deletePreset'))"
+                title="删除选中预设"
+            ><i class="fa-solid fa-trash"></i></button>
+        </div>
+        <div class="cpr-tip-inline" style="margin-top:3px">
+            <i class="fa-solid fa-circle-info"></i>
+            内置预设随版本统一更新，如有微调请另存为其他名称。
+        </div>
+    </div>
+
+    <div class="cpr-divider"></div>
+
+    <!-- ── 启动方式 ────────────────────────────────────────────── -->
+    <div class="cpr-section">
+        <div class="cpr-section-hd">
+            <span class="cpr-section-label">启动方式</span>
+        </div>
+
+        <div class="cpr-launch-grid">
+            <label class="cpr-launch-item">
+                <input type="radio" name="cpr-launch-role" value="assistant" />
+                <div class="cpr-launch-card">🤖 AI助手</div>
+            </label>
+            <label class="cpr-launch-item">
+                <input type="radio" name="cpr-launch-role" value="system" />
+                <div class="cpr-launch-card">⚙️ System</div>
+            </label>
+        </div>
+
+        <div class="cpr-trigger-row">
+            <label for="cpr-trigger-text" class="cpr-trigger-label">触发文本</label>
+            <input
+                type="text"
+                id="cpr-trigger-text"
+                class="cpr-trigger-input"
+                value="角色扮演暂停，请对上方所有档案进行压缩归档"
+                placeholder="角色扮演暂停，请对上方所有档案进行压缩归档"
+            />
+        </div>
+    </div>
+
+    <!-- ── 执行按钮 ─────────────────────────────────────────────── -->
+    <div class="cpr-action-row">
+        <button
+            class="cpr-execute-btn"
+            onclick="document.dispatchEvent(new CustomEvent('Cpr_execute'))"
+            title="读取所有条目内容，模拟为历史档案，触发AI进行压缩"
+        >
+            <i class="fa-solid fa-compress-arrows-alt"></i> 开始压缩
+        </button>
+    </div>
+    <div class="cpr-tip-box">
+        <i class="fa-solid fa-circle-info"></i>
+        AI将读取上方条目内容（模拟为聊天历史），对其进行二次压缩。实际聊天记录将在生成期间临时隐藏。
+    </div>
+
+    <div class="cpr-divider"></div>
+
+    <!-- ── 保存目标 ──────────────────────────────────────────────── -->
+    <div class="cpr-section">
+        <div class="cpr-section-hd">
+            <span class="cpr-section-label">
+                <i class="fa-solid fa-book"></i> 保存目标
+            </span>
+        </div>
+
+        <div class="cpr-wi-panel">
+
+            <div class="cpr-wi-pair-row">
+                <div class="cpr-wi-field">
+                    <label class="cpr-wi-label" for="cpr-out-bookname">世界书</label>
+                    <div class="cpr-wi-input-wrap">
+                        <select id="cpr-out-bookname" class="cpr-wi-input">
+                            <option value="">加载世界书列表...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="cpr-wi-field">
+                    <label class="cpr-wi-label" for="cpr-out-entryname">条目名</label>
+                    <div class="cpr-wi-input-wrap">
+                        <input
+                            type="text"
+                            id="cpr-out-entryname"
+                            class="cpr-wi-input"
+                            value="档案压缩"
+                            placeholder="档案压缩"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            <div class="cpr-wi-control-row">
+                <span class="cpr-wi-label">写入方式</span>
+                <label class="cpr-wi-check cpr-wi-check--compact">
+                    <input type="radio" name="cpr-write-mode" value="overwrite" checked />
+                    <span>覆盖</span>
+                </label>
+                <label class="cpr-wi-check cpr-wi-check--compact">
+                    <input type="radio" name="cpr-write-mode" value="append" />
+                    <span>追加</span>
+                </label>
+            </div>
+
+            <div class="cpr-wi-control-row">
+                <label class="cpr-wi-check cpr-wi-check--compact">
+                    <input type="checkbox" id="cpr-wi-extract" checked />
+                    <span>自动清理思维链</span>
+                </label>
+            </div>
+
+            <div class="cpr-wi-control-row cpr-wi-control-row--tight">
+                <div class="cpr-cleanup-config">
+                    <label class="cpr-wi-label cpr-wi-label--inline" for="cpr-wi-extract-mode">清理标签</label>
+                    <select id="cpr-wi-extract-mode" class="cpr-select cpr-select--compact">
+                        <option value="thinking" selected>&lt;thinking&gt;</option>
+                        <option value="think">&lt;think&gt;</option>
+                        <option value="custom">其他</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="cpr-wi-custom-row">
+                <input
+                    type="text"
+                    id="cpr-wi-extract-custom"
+                    class="cpr-wi-input"
+                    placeholder="自定义标签名，多个用逗号分隔"
+                    style="display:none"
+                />
+            </div>
+
+        </div>
+    </div>
+
+    <div class="cpr-divider"></div>
+
+    <!-- ── 压缩预览 ──────────────────────────────────────────────── -->
+    <div class="cpr-section">
+        <div class="cpr-section-hd">
+            <span class="cpr-section-label">
+                <i class="fa-solid fa-window-restore"></i> 压缩预览
+            </span>
+            <span id="cpr-preview-status" class="cpr-preview-status">待生成</span>
+        </div>
+
+        <textarea
+            id="cpr-preview"
+            class="cpr-textarea cpr-preview-textarea"
+            rows="10"
+            placeholder="开始压缩后，这里会同步显示将写入世界书的内容。"
+            readonly
+        ></textarea>
+
+        <div class="cpr-preview-actions">
+            <button
+                class="cpr-icon-btn cpr-icon-btn--save cpr-preview-btn"
+                onclick="document.dispatchEvent(new CustomEvent('Cpr_confirmPreview'))"
+                title="确认当前预览并写入世界书"
+            ><i class="fa-solid fa-check"></i> 确认写入</button>
+            <button
+                class="cpr-icon-btn cpr-preview-btn"
+                onclick="document.dispatchEvent(new CustomEvent('Cpr_reroll'))"
+                title="删除本次生成并重新压缩"
+            ><i class="fa-solid fa-rotate-right"></i> 重ROLL</button>
+            <button
+                id="cpr-continue-btn"
+                class="cpr-icon-btn cpr-preview-btn"
+                onclick="document.dispatchEvent(new CustomEvent('Cpr_continue'))"
+                title="继续上一次生成（同酒馆继续按钮）"
+                disabled
+            ><i class="fa-solid fa-forward"></i> 继续</button>
+        </div>
+    </div>
+
+</div>
+
+<style>
+/* ─────────────────────────────────────────────────────────────────
+   总结的总结模块样式（命名空间前缀 cpr-）
+   ───────────────────────────────────────────────────────────────── */
+
+.cpr-container {
+    padding: 4px 2px;
+}
+
+/* ── 区块通用 ─────────────────────────────────────────────────── */
+.cpr-section {
+    margin-bottom: 10px;
+}
+
+.cpr-section-hd {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 7px;
+}
+
+.cpr-section-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: bold;
+    color: var(--SmartThemeTextColor);
+    opacity: 0.9;
+}
+
+.cpr-divider {
+    border: none;
+    border-top: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.1));
+    margin: 10px 0;
+}
+
+/* ── 世界书浏览器 ────────────────────────────────────────────── */
+.cpr-browser-hd {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.cpr-select--flex {
+    flex: 1;
+    min-width: 0;
+}
+
+.cpr-entry-checklist {
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.15));
+    border-radius: 5px;
+    background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.03));
+    max-height: 130px;
+    overflow-y: auto;
+    padding: 3px;
+    margin-bottom: 5px;
+}
+
+.cpr-entry-check-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--SmartThemeTextColor);
+    transition: background 0.12s;
+}
+
+.cpr-entry-check-item:hover {
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.cpr-browser-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    gap: 6px;
+}
+
+.cpr-check-all-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--SmartThemeTextColor);
+    opacity: 0.75;
+    flex-shrink: 0;
+}
+
+.cpr-order-hd {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+/* ── 条目标签（ordered list 行内文字） ────────────────────────── */
+.cpr-entry-label {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.9;
+}
+
+/* ── 条目列表 ─────────────────────────────────────────────────── */
+.cpr-entry-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: 6px;
+    min-height: 36px;
+}
+
+.cpr-entry-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 6px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.15));
+    border-radius: 5px;
+    background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.04));
+    transition: background 0.15s, border-color 0.15s;
+    cursor: default;
+}
+
+.cpr-entry-row.cpr-drag-over {
+    border-color: var(--SmartThemeQuoteColor, #3498db);
+    background: rgba(52, 152, 219, 0.08);
+}
+
+.cpr-entry-row.cpr-dragging {
+    opacity: 0.45;
+}
+
+.cpr-drag-handle {
+    color: var(--SmartThemeTextColor);
+    opacity: 0.35;
+    cursor: grab;
+    font-size: 13px;
+    flex-shrink: 0;
+    padding: 0 2px;
+    user-select: none;
+}
+
+.cpr-drag-handle:active {
+    cursor: grabbing;
+}
+
+.cpr-entry-del {
+    flex-shrink: 0;
+}
+
+.cpr-entry-empty {
+    text-align: center;
+    font-size: 11px;
+    color: var(--SmartThemeTextColor);
+    opacity: 0.4;
+    padding: 8px 0;
+    font-style: italic;
+}
+
+/* ── 添加按钮 ─────────────────────────────────────────────────── */
+.cpr-add-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border: 1px solid rgba(52, 152, 219, 0.4);
+    border-radius: 5px;
+    background: rgba(52, 152, 219, 0.07);
+    color: var(--SmartThemeTextColor);
+    font-size: 11px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.cpr-add-btn:hover {
+    background: rgba(52, 152, 219, 0.18);
+    border-color: #3498db;
+}
+
+/* ── 文本域 ──────────────────────────────────────────────────── */
+.cpr-textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.2));
+    border-radius: 5px;
+    background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.06));
+    color: var(--SmartThemeTextColor);
+    font-size: 12px;
+    line-height: 1.5;
+    resize: vertical;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    font-family: inherit;
+    margin-bottom: 6px;
+}
+
+.cpr-textarea:focus {
+    outline: none;
+    border-color: var(--SmartThemeQuoteColor, #3498db);
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.15);
+}
+
+.cpr-textarea::placeholder {
+    opacity: 0.45;
+    font-size: 11px;
+}
+
+.cpr-preview-textarea {
+    background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.03));
+    font-size: 11px;
+}
+
+/* ── 预设行 ───────────────────────────────────────────────────── */
+.cpr-preset-row {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+
+.cpr-select {
+    flex: 1;
+    padding: 5px 7px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.2));
+    border-radius: 4px;
+    background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.08));
+    color: var(--SmartThemeTextColor);
+    font-size: 11px;
+    cursor: pointer;
+    min-width: 0;
+}
+
+.cpr-select:focus {
+    outline: none;
+    border-color: var(--SmartThemeQuoteColor, #3498db);
+}
+
+.cpr-select--compact {
+    flex: 0 0 auto;
+}
+
+/* ── 图标按钮 ─────────────────────────────────────────────────── */
+.cpr-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 9px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.2));
+    border-radius: 4px;
+    background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.07));
+    color: var(--SmartThemeTextColor);
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.18s, border-color 0.18s;
+    flex-shrink: 0;
+}
+
+.cpr-icon-btn:hover {
+    background: rgba(255,255,255,0.14);
+}
+
+.cpr-icon-btn--save {
+    border-color: rgba(39,174,96,0.4);
+    background: rgba(39,174,96,0.07);
+}
+.cpr-icon-btn--save:hover {
+    background: rgba(39,174,96,0.18);
+    border-color: #27ae60;
+}
+
+.cpr-icon-btn--del {
+    border-color: rgba(231,76,60,0.35);
+    background: rgba(231,76,60,0.06);
+    color: var(--SmartThemeTextColor);
+}
+.cpr-icon-btn--del:hover {
+    background: rgba(231,76,60,0.18);
+    border-color: #e74c3c;
+}
+
+/* ── 启动方式 ─────────────────────────────────────────────────── */
+.cpr-launch-grid {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.cpr-launch-item {
+    flex: 1;
+    cursor: pointer;
+}
+
+.cpr-launch-item input[type="radio"] {
+    display: none;
+}
+
+.cpr-launch-card {
+    padding: 7px 8px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.18));
+    border-radius: 5px;
+    background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.05));
+    font-size: 11px;
+    text-align: center;
+    color: var(--SmartThemeTextColor);
+    transition: background 0.18s, border-color 0.18s;
+    cursor: pointer;
+}
+
+.cpr-launch-item input[type="radio"]:checked + .cpr-launch-card {
+    border-color: var(--SmartThemeQuoteColor, #3498db);
+    background: rgba(52, 152, 219, 0.14);
+}
+
+.cpr-trigger-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.cpr-trigger-label {
+    font-size: 11px;
+    font-weight: bold;
+    opacity: 0.75;
+    flex-shrink: 0;
+    color: var(--SmartThemeTextColor);
+}
+
+.cpr-trigger-input {
+    flex: 1;
+    padding: 5px 8px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.2));
+    border-radius: 4px;
+    background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.08));
+    color: var(--SmartThemeTextColor);
+    font-size: 11px;
+}
+
+.cpr-trigger-input:focus {
+    outline: none;
+    border-color: var(--SmartThemeQuoteColor, #3498db);
+}
+
+/* ── 执行按钮 ─────────────────────────────────────────────────── */
+.cpr-action-row {
+    display: flex;
+    gap: 6px;
+    margin: 12px 0 8px;
+}
+
+.cpr-execute-btn {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid rgba(22,160,133,0.45);
+    border-radius: 6px;
+    background: rgba(22,160,133,0.07);
+    color: var(--SmartThemeTextColor);
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.cpr-execute-btn:hover {
+    background: rgba(22,160,133,0.2);
+    border-color: #16a085;
+    color: #1abc9c;
+}
+
+.cpr-execute-btn:active {
+    background: rgba(22,160,133,0.32);
+}
+
+/* ── 提示框 ───────────────────────────────────────────────────── */
+.cpr-tip-box {
+    font-size: 11px;
+    line-height: 1.55;
+    opacity: 0.75;
+    margin-bottom: 4px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.03);
+}
+
+.cpr-tip-inline {
+    font-size: 11px;
+    opacity: 0.6;
+    margin-top: 4px;
+    line-height: 1.5;
+}
+
+/* ── 世界书保存区 ─────────────────────────────────────────────── */
+.cpr-wi-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.cpr-wi-pair-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px;
+}
+
+.cpr-wi-field {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.cpr-wi-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+}
+
+.cpr-wi-label {
+    font-size: 11px;
+    font-weight: bold;
+    color: var(--SmartThemeTextColor);
+    opacity: 0.75;
+}
+
+.cpr-wi-label--inline {
+    flex-shrink: 0;
+}
+
+.cpr-wi-input {
+    width: 100%;
+    padding: 5px 7px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.2));
+    border-radius: 4px;
+    background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.08));
+    color: var(--SmartThemeTextColor);
+    font-size: 11px;
+    box-sizing: border-box;
+}
+
+.cpr-wi-input:focus {
+    outline: none;
+    border-color: var(--SmartThemeQuoteColor, #3498db);
+}
+
+.cpr-wi-control-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.cpr-wi-control-row--tight {
+    margin-top: -2px;
+}
+
+.cpr-cleanup-config {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cpr-wi-check {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--SmartThemeTextColor);
+    opacity: 0.85;
+}
+
+.cpr-wi-check--compact {
+    font-size: 11px;
+}
+
+.cpr-wi-custom-row {
+    margin-top: -2px;
+}
+
+/* ── 预览区 ───────────────────────────────────────────────────── */
+.cpr-preview-status {
+    font-size: 10px;
+    opacity: 0.65;
+    font-style: italic;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.05);
+}
+
+.cpr-preview-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.cpr-preview-btn {
+    flex: 1;
+}
+</style>
