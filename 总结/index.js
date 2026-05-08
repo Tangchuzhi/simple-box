@@ -823,6 +823,17 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         if (Array.from(sel.options).some(o => o.value === prev))
             sel.value = prev;
     }
+    function newPreset(section) {
+        const ta = document.getElementById('smry-prompt-a');
+        const sel = document.getElementById('smry-presets-a');
+        if (sel)
+            sel.value = '';
+        if (ta) {
+            ta.value = '';
+            ta.focus();
+        }
+        persistState();
+    }
     function savePreset(section) {
         var _a, _b, _c;
         const textareaId = 'smry-prompt-a';
@@ -978,6 +989,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     // ── 自定义事件监听 ────────────────────────────────────────────────────────
     document.addEventListener(`${EVENT_NS}execute`, () => { executeSummary(); });
     document.addEventListener(`${EVENT_NS}savePresetA`, () => savePreset('A'));
+    document.addEventListener(`${EVENT_NS}newPresetA`, () => newPreset('A'));
     document.addEventListener(`${EVENT_NS}deletePresetA`, () => deletePreset('A'));
     document.addEventListener(`${EVENT_NS}applyPresetA`, () => applyPreset('A'));
     document.addEventListener(`${EVENT_NS}resetFloors`, () => {
