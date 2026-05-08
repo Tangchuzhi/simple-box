@@ -57,29 +57,8 @@
         floorsHidden: false,
     };
     // ── 内置预设 ─────────────────────────────────────────────────────────────
+    const REMOVED_DEFAULTS = ['打工喵-压缩版'];
     const DEFAULT_PRESETS = [
-        {
-            name: '打工喵-压缩版',
-            prompt: `现在停止生成任何正文创作！请调取上方所有已提供的总结档案，对其进行二次压缩归档。
-
-必须遵循以下记录格式：
-
-【压缩档案】
-
-- [时间段]: {在此高度精炼地归纳此阶段的核心事件脉络。字数不少于80字，仅保留能推动剧情主线的决定性事件，合并同类细节，聚焦因果链。客观记录，禁止文学化修辞，禁止描述角色心情。}
-- [时间段]: {……}
-
-- [关键伏笔]: {汇总所有档案中尚未解决的伏笔、约定与未竟事项，并注明其来源档案的时间段。}
-- [重要物品]: {汇总各档案中仍有效的关键道具与归属状态。}
-- [关系演变]: {高度概括各角色在所有档案时间跨度内的性格与关系演变轨迹，引用关键转折事件作为论据，禁止文学化修辞，禁止描述角色心情。}
-
-————
-
-压缩要求:
-1. 信息密度优先：删除冗余，保留对理解后续剧情不可或缺的信息。
-2. 时序严格：确保事件按时间顺序排列，不得打乱因果关系。
-3. 交叉校验：如各档案存在相互矛盾的记录，以最新档案为准并注明差异。`
-        },
         {
             name: 'Janus-灵魂典藏馆',
             prompt: `Janus, pause all narrative and role-playing. Based on <soul_world> + <chat_history> content, compress existing [Soul Archives]. **This response should only contain <thinking> and compressed soul archives.**
@@ -935,6 +914,17 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             persistState();
         }
     }
+    function newPreset() {
+        const ta = document.getElementById('cpr-prompt');
+        const sel = document.getElementById('cpr-presets');
+        if (sel)
+            sel.value = '';
+        if (ta) {
+            ta.value = '';
+            ta.focus();
+        }
+        persistState();
+    }
     function savePreset() {
         var _a, _b;
         const ta = document.getElementById('cpr-prompt');
@@ -1049,6 +1039,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     document.addEventListener(`${EVENT_NS}clearAll`, () => { clearAllEntries(); });
     document.addEventListener(`${EVENT_NS}toggleCheckAll`, () => { toggleCheckAll(); });
     document.addEventListener(`${EVENT_NS}applyPreset`, () => { applyPreset(); });
+    document.addEventListener(`${EVENT_NS}newPreset`, () => { newPreset(); });
     document.addEventListener(`${EVENT_NS}savePreset`, () => { savePreset(); });
     document.addEventListener(`${EVENT_NS}deletePreset`, () => { deletePreset(); });
     // ── 实时持久化 ────────────────────────────────────────────────────────────
@@ -1075,6 +1066,8 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             // 加载持久化数据
             entries = loadJSON(SK_ENTRIES, []);
             presets = loadJSON(SK_PRESETS, []);
+            // 清理已移除的内置预设
+            presets = presets.filter(p => !REMOVED_DEFAULTS.includes(p.name));
             // 内置预设强制同步（覆盖同名旧内容，补充缺失项），用户自定义预设不受影响
             DEFAULT_PRESETS.forEach(def => {
                 const idx = presets.findIndex(p => p.name === def.name);

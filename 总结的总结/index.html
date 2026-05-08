@@ -82,6 +82,11 @@
                 title="加载选中预设到编辑区"
             ><i class="fa-solid fa-file-import"></i> 加载</button>
             <button
+                class="cpr-icon-btn cpr-icon-btn--new"
+                onclick="document.dispatchEvent(new CustomEvent('Cpr_newPreset'))"
+                title="新建空白预设（清空编辑区，输入新内容后再保存）"
+            ><i class="fa-solid fa-plus"></i> 新建</button>
+            <button
                 class="cpr-icon-btn cpr-icon-btn--save"
                 onclick="document.dispatchEvent(new CustomEvent('Cpr_savePreset'))"
                 title="将当前提示词另存为预设"
@@ -544,6 +549,15 @@
 .cpr-icon-btn--save:hover {
     background: rgba(39,174,96,0.18);
     border-color: #27ae60;
+}
+
+.cpr-icon-btn--new {
+    border-color: rgba(52,152,219,0.4);
+    background: rgba(52,152,219,0.07);
+}
+.cpr-icon-btn--new:hover {
+    background: rgba(52,152,219,0.18);
+    border-color: #3498db;
 }
 
 .cpr-icon-btn--del {
