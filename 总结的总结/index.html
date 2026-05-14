@@ -122,16 +122,6 @@
             </label>
         </div>
 
-        <div class="cpr-trigger-row">
-            <label for="cpr-trigger-text" class="cpr-trigger-label">触发文本</label>
-            <input
-                type="text"
-                id="cpr-trigger-text"
-                class="cpr-trigger-input"
-                value="角色扮演暂停，请对上方所有档案进行压缩归档"
-                placeholder="角色扮演暂停，请对上方所有档案进行压缩归档"
-            />
-        </div>
     </div>
 
     <!-- ── 执行按钮 ─────────────────────────────────────────────── -->
@@ -195,6 +185,17 @@
                     <input type="radio" name="cpr-write-mode" value="append" />
                     <span>追加</span>
                 </label>
+                <span class="cpr-wi-label cpr-wi-label--inline" style="margin-left:auto">插入深度</span>
+                <input
+                    type="number"
+                    id="cpr-wi-depth"
+                    class="cpr-wi-input"
+                    value="9999"
+                    min="0"
+                    max="9999"
+                    style="width:70px"
+                    title="世界书条目的 depth 值（0=最新消息附近，9999=最早）"
+                />
             </div>
 
             <div class="cpr-wi-control-row">
@@ -225,6 +226,7 @@
                 />
             </div>
 
+
         </div>
     </div>
 
@@ -244,7 +246,6 @@
             class="cpr-textarea cpr-preview-textarea"
             rows="10"
             placeholder="开始压缩后，这里会同步显示将写入世界书的内容。"
-            readonly
         ></textarea>
 
         <div class="cpr-preview-actions">

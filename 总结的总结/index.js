@@ -33,6 +33,7 @@
     const SK_WI_EXTRACT_CUSTOM = 'cpr_wi_extract_custom';
     const SK_BROWSE_BOOKNAME = 'cpr_browse_bookname';
     const SK_WRITE_MODE = 'cpr_write_mode';
+    const SK_WI_DEPTH = 'cpr_wi_depth';
     // ── SillyTavern 注入位置常量 ──────────────────────────────────────────────
     const POS_IN_PROMPT = 0; // 主提示词末尾（系统区）
     const POS_IN_CHAT = 1; // 聊天历史中（按 depth 定位）
@@ -120,7 +121,9 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 [5个一组循环直到所有角色档案生成]
 
 **[已完成[M+X]/N个角色档案压缩，全部角色档案整理完毕。]**
-</janusdiary>`
+</janusdiary>
+
+现在开始压缩：`
         },
         {
             name: '打工喵',
@@ -144,7 +147,9 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 2. 时序严格：事件按时间先后排列，保留因果链，不得打乱顺序。
 3. 交叉校验：若各档案存在相互矛盾的记录，以最新档案为准并在事件描述中简要注明差异。
 4. 状态更新：[待完成事件]与[重要物品]必须基于最新档案去除已完成、已失效或已消耗的条目；[角色成长]保留最新的阶段性结论。
-5. 格式一致：输出严格遵循上方【总结】结构，不得新增或省略小节。`
+5. 格式一致：输出严格遵循上方【总结】结构，不得新增或省略小节。
+
+现在开始压缩：`
         }
     ];
     // ── 工具函数 ─────────────────────────────────────────────────────────────
@@ -162,6 +167,67 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     }
     function getCtx() {
         return window.SillyTavern.getContext();
+    }
+    // ── extension_settings 持久化（跨设备同步到 settings.json） ──────────────
+    const SETTINGS_NS = 'simple-box';
+    function getExtSettings() {
+        try {
+            const ctx = getCtx();
+            const ext = ctx === null || ctx === void 0 ? void 0 : ctx.extensionSettings;
+            if (ext) {
+                if (!ext[SETTINGS_NS])
+                    ext[SETTINGS_NS] = {};
+                return ext[SETTINGS_NS];
+            }
+        }
+        catch (_a) { }
+        return {};
+    }
+    function saveSetting(key, value) {
+        var _a;
+        try {
+            const ctx = getCtx();
+            getExtSettings()[key] = value;
+            (_a = ctx === null || ctx === void 0 ? void 0 : ctx.saveSettingsDebounced) === null || _a === void 0 ? void 0 : _a.call(ctx);
+        }
+        catch (_b) {
+            try {
+                localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+            }
+            catch (_c) { }
+        }
+    }
+    function loadSetting(key) {
+        try {
+            const s = getExtSettings();
+            if (key in s && s[key] !== null && s[key] !== undefined)
+                return String(s[key]);
+            const lv = localStorage.getItem(key);
+            if (lv !== null)
+                saveSetting(key, lv);
+            return lv;
+        }
+        catch (_a) {
+            return localStorage.getItem(key);
+        }
+    }
+    function loadSettingJSON(key, def) {
+        try {
+            const s = getExtSettings();
+            if (key in s && s[key] !== null && s[key] !== undefined)
+                return s[key];
+            const lv = localStorage.getItem(key);
+            if (lv !== null) {
+                try {
+                    const parsed = JSON.parse(lv);
+                    saveSetting(key, parsed);
+                    return parsed;
+                }
+                catch (_a) { }
+            }
+        }
+        catch (_b) { }
+        return def;
     }
     function getInputVal(id) {
         const el = document.getElementById(id);
@@ -190,9 +256,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         var _a;
         const r = document.querySelector('input[name="cpr-launch-role"]:checked');
         return ((_a = r === null || r === void 0 ? void 0 : r.value) !== null && _a !== void 0 ? _a : 'assistant');
-    }
-    function getTriggerText() {
-        return getInputVal('cpr-trigger-text').trim() || '角色扮演暂停，请对上方所有档案进行压缩归档';
     }
     function getOutBookName() {
         return getInputVal('cpr-out-bookname').trim();
@@ -247,13 +310,17 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         }
         return null;
     }
+    function getWiDepth() {
+        const v = parseInt(getInputVal('cpr-wi-depth'), 10);
+        return isNaN(v) ? 9999 : Math.max(0, v);
+    }
     function makeWiEntry(uid, comment, content) {
         return {
             uid, key: [], keysecondary: [], comment, content,
             constant: true, selective: true, selectiveLogic: 0,
             addMemo: false, order: 100, position: 4, disable: false,
             excludeRecursion: false, preventRecursion: false, delayUntilRecursion: 0,
-            probability: 100, useProbability: true, depth: 9999,
+            probability: 100, useProbability: true, depth: getWiDepth(),
             group: '', groupOverride: false, groupWeight: 100,
             scanDepth: null, caseSensitive: null, matchWholeWords: null,
             useGroupScoring: null, automationId: '', role: 0,
@@ -268,7 +335,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         entry.constant = true;
         entry.selective = true;
         entry.position = 4;
-        entry.depth = 9999;
+        entry.depth = getWiDepth();
         entry.role = 0;
     }
     async function loadWorldBookNames() {
@@ -299,10 +366,10 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         var _a, _b;
         const outSel = document.getElementById('cpr-out-bookname');
         if (outSel)
-            populateSelectWithBooks(outSel, (_a = localStorage.getItem(SK_OUT_BOOKNAME)) !== null && _a !== void 0 ? _a : '');
+            populateSelectWithBooks(outSel, (_a = loadSetting(SK_OUT_BOOKNAME)) !== null && _a !== void 0 ? _a : '');
         const browseSel = document.getElementById('cpr-browse-bookname');
         if (browseSel) {
-            populateSelectWithBooks(browseSel, (_b = localStorage.getItem(SK_BROWSE_BOOKNAME)) !== null && _b !== void 0 ? _b : '');
+            populateSelectWithBooks(browseSel, (_b = loadSetting(SK_BROWSE_BOOKNAME)) !== null && _b !== void 0 ? _b : '');
             if (browseSel.value)
                 loadBrowseEntries(browseSel.value);
         }
@@ -415,7 +482,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     // ── 条目列表管理 ─────────────────────────────────────────────────────────
     let dragSrcIdx = -1;
     function persistEntries() {
-        saveJSON(SK_ENTRIES, entries);
+        saveSetting(SK_ENTRIES, entries);
     }
     function renderEntryList() {
         const list = document.getElementById('cpr-entry-list');
@@ -679,7 +746,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         var _a;
         const prompt = getInputVal('cpr-prompt').trim();
         const launchRole = getLaunchRole();
-        const triggerText = getTriggerText();
         if (!prompt) {
             if (typeof toastr !== 'undefined')
                 toastr.warning('请填写压缩提示词。', '总结的总结');
@@ -743,11 +809,9 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         }
         await delay(200);
         // ── 触发生成 ─────────────────────────────────────────────
-        const roleNum = launchRole === 'assistant' ? ROLE_ASSISTANT : ROLE_SYSTEM;
         if (launchRole === 'assistant') {
             injectAtPosition(INJECT_KEY_USER, '（压缩任务触发）', POS_IN_CHAT, 0, ROLE_USER, true);
         }
-        injectAtPosition(INJECT_KEY_LAUNCH, triggerText, POS_IN_CHAT, 0, roleNum, true);
         await delay(200);
         await triggerGeneration();
         console.log(`${LOG_PREFIX} 压缩触发完成，条目数: ${blocks.length}，模式: ${launchRole}`);
@@ -856,7 +920,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
                 return;
             const el = document.getElementById('cpr-preview');
             if (el) {
-                el.removeAttribute('readonly');
                 el.value = cleanAiResponse(text);
                 setPreviewStatus('生成中...');
             }
@@ -868,9 +931,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             await delay(200);
             updatePreviewFromLatestMessage();
             updateContinueBtnState();
-            const el = document.getElementById('cpr-preview');
-            if (el)
-                el.setAttribute('readonly', '');
         });
         eventSource.on(eventTypes.GENERATION_STOPPED, () => {
             if (!session.pendingPreview)
@@ -878,9 +938,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             session.pendingPreview = false;
             setPreviewStatus('生成已停止');
             updateContinueBtnState();
-            const el = document.getElementById('cpr-preview');
-            if (el)
-                el.setAttribute('readonly', '');
         });
     }
     // ── 预设管理 ──────────────────────────────────────────────────────────────
@@ -947,7 +1004,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         else {
             presets.push({ name: trimmed, prompt });
         }
-        saveJSON(SK_PRESETS, presets);
+        saveSetting(SK_PRESETS, presets);
         refreshPresetSelect();
         if (typeof toastr !== 'undefined')
             toastr.success(`已保存预设「${trimmed}」。`, '总结的总结', { timeOut: 2000 });
@@ -965,7 +1022,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         if (!window.confirm(`确定删除预设「${presets[idx].name}」？`))
             return;
         presets.splice(idx, 1);
-        saveJSON(SK_PRESETS, presets);
+        saveSetting(SK_PRESETS, presets);
         refreshPresetSelect();
         if (typeof toastr !== 'undefined')
             toastr.success('预设已删除。下次刷新将自动恢复内置预设。', '总结的总结', { timeOut: 2500 });
@@ -974,53 +1031,51 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     function persistState() {
         const ta = document.getElementById('cpr-prompt');
         if (ta)
-            localStorage.setItem(SK_PROMPT, ta.value);
+            saveSetting(SK_PROMPT, ta.value);
         const launchR = document.querySelector('input[name="cpr-launch-role"]:checked');
         if (launchR)
-            localStorage.setItem(SK_LAUNCH, launchR.value);
-        const trigger = document.getElementById('cpr-trigger-text');
-        if (trigger)
-            localStorage.setItem(SK_TRIGGER_TXT, trigger.value);
-        localStorage.setItem(SK_OUT_BOOKNAME, getInputVal('cpr-out-bookname'));
-        localStorage.setItem(SK_OUT_ENTRYNAME, getInputVal('cpr-out-entryname'));
-        localStorage.setItem(SK_BROWSE_BOOKNAME, getInputVal('cpr-browse-bookname'));
+            saveSetting(SK_LAUNCH, launchR.value);
+        saveSetting(SK_OUT_BOOKNAME, getInputVal('cpr-out-bookname'));
+        saveSetting(SK_OUT_ENTRYNAME, getInputVal('cpr-out-entryname'));
+        saveSetting(SK_BROWSE_BOOKNAME, getInputVal('cpr-browse-bookname'));
         const wm = document.querySelector('input[name="cpr-write-mode"]:checked');
         if (wm)
-            localStorage.setItem(SK_WRITE_MODE, wm.value);
+            saveSetting(SK_WRITE_MODE, wm.value);
         const extract = document.getElementById('cpr-wi-extract');
         if (extract)
-            localStorage.setItem(SK_WI_EXTRACT, extract.checked ? 'true' : 'false');
-        localStorage.setItem(SK_WI_EXTRACT_MODE, getExtractMode());
-        localStorage.setItem(SK_WI_EXTRACT_CUSTOM, getInputVal('cpr-wi-extract-custom'));
+            saveSetting(SK_WI_EXTRACT, extract.checked ? 'true' : 'false');
+        saveSetting(SK_WI_EXTRACT_MODE, getExtractMode());
+        saveSetting(SK_WI_EXTRACT_CUSTOM, getInputVal('cpr-wi-extract-custom'));
+        saveSetting(SK_WI_DEPTH, getInputVal('cpr-wi-depth'));
     }
     function restoreState() {
         var _a, _b, _c, _d, _e, _f, _g;
         const ta = document.getElementById('cpr-prompt');
         if (ta)
-            ta.value = (_a = localStorage.getItem(SK_PROMPT)) !== null && _a !== void 0 ? _a : '';
-        const savedRole = ((_b = localStorage.getItem(SK_LAUNCH)) !== null && _b !== void 0 ? _b : 'assistant');
+            ta.value = (_a = loadSetting(SK_PROMPT)) !== null && _a !== void 0 ? _a : '';
+        const savedRole = ((_b = loadSetting(SK_LAUNCH)) !== null && _b !== void 0 ? _b : 'assistant');
         const r = document.querySelector(`input[name="cpr-launch-role"][value="${savedRole}"]`);
         if (r)
             r.checked = true;
-        const trigger = document.getElementById('cpr-trigger-text');
-        if (trigger)
-            trigger.value = (_c = localStorage.getItem(SK_TRIGGER_TXT)) !== null && _c !== void 0 ? _c : '角色扮演暂停，请对上方所有档案进行压缩归档';
         const outEntry = document.getElementById('cpr-out-entryname');
         if (outEntry)
-            outEntry.value = (_d = localStorage.getItem(SK_OUT_ENTRYNAME)) !== null && _d !== void 0 ? _d : '档案压缩';
-        const savedWriteMode = (_e = localStorage.getItem(SK_WRITE_MODE)) !== null && _e !== void 0 ? _e : 'overwrite';
+            outEntry.value = (_c = loadSetting(SK_OUT_ENTRYNAME)) !== null && _c !== void 0 ? _c : '档案压缩';
+        const savedWriteMode = (_d = loadSetting(SK_WRITE_MODE)) !== null && _d !== void 0 ? _d : 'overwrite';
         const writeModeEl = document.querySelector(`input[name="cpr-write-mode"][value="${savedWriteMode}"]`);
         if (writeModeEl)
             writeModeEl.checked = true;
         const extract = document.getElementById('cpr-wi-extract');
         if (extract)
-            extract.checked = localStorage.getItem(SK_WI_EXTRACT) !== 'false';
+            extract.checked = loadSetting(SK_WI_EXTRACT) !== 'false';
         const extractMode = document.getElementById('cpr-wi-extract-mode');
         if (extractMode)
-            extractMode.value = (_f = localStorage.getItem(SK_WI_EXTRACT_MODE)) !== null && _f !== void 0 ? _f : 'thinking';
+            extractMode.value = (_e = loadSetting(SK_WI_EXTRACT_MODE)) !== null && _e !== void 0 ? _e : 'thinking';
         const extractCustom = document.getElementById('cpr-wi-extract-custom');
         if (extractCustom)
-            extractCustom.value = (_g = localStorage.getItem(SK_WI_EXTRACT_CUSTOM)) !== null && _g !== void 0 ? _g : '';
+            extractCustom.value = (_f = loadSetting(SK_WI_EXTRACT_CUSTOM)) !== null && _f !== void 0 ? _f : '';
+        const wiDepthEl = document.getElementById('cpr-wi-depth');
+        if (wiDepthEl)
+            wiDepthEl.value = (_g = loadSetting(SK_WI_DEPTH)) !== null && _g !== void 0 ? _g : '9999';
         toggleCustomExtractInput();
     }
     // ── 自定义事件监听 ────────────────────────────────────────────────────────
@@ -1031,7 +1086,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     document.addEventListener(`${EVENT_NS}refreshEntries`, () => {
         const sel = document.getElementById('cpr-browse-bookname');
         if (sel === null || sel === void 0 ? void 0 : sel.value) {
-            localStorage.setItem(SK_BROWSE_BOOKNAME, sel.value);
+            saveSetting(SK_BROWSE_BOOKNAME, sel.value);
             loadBrowseEntries(sel.value);
         }
     });
@@ -1064,8 +1119,8 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             if (!ctx)
                 throw new Error('getContext() 返回空值');
             // 加载持久化数据
-            entries = loadJSON(SK_ENTRIES, []);
-            presets = loadJSON(SK_PRESETS, []);
+            entries = loadSettingJSON(SK_ENTRIES, []);
+            presets = loadSettingJSON(SK_PRESETS, []);
             // 清理已移除的内置预设
             presets = presets.filter(p => !REMOVED_DEFAULTS.includes(p.name));
             // 内置预设强制同步（覆盖同名旧内容，补充缺失项），用户自定义预设不受影响
@@ -1079,7 +1134,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
                     presets.unshift(Object.assign({}, def));
                 }
             });
-            saveJSON(SK_PRESETS, presets);
+            saveSetting(SK_PRESETS, presets);
             restoreState();
             refreshPresetSelect();
             renderEntryList();

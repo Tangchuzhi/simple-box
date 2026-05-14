@@ -37,6 +37,7 @@
     const SK_WI_EXTRACT_CUSTOM  = 'cpr_wi_extract_custom';
     const SK_BROWSE_BOOKNAME    = 'cpr_browse_bookname';
     const SK_WRITE_MODE         = 'cpr_write_mode';
+    const SK_WI_DEPTH           = 'cpr_wi_depth';
 
     // ── SillyTavern 注入位置常量 ──────────────────────────────────────────────
     const POS_IN_PROMPT = 0;  // 主提示词末尾（系统区）
@@ -156,7 +157,9 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 [5个一组循环直到所有角色档案生成]
 
 **[已完成[M+X]/N个角色档案压缩，全部角色档案整理完毕。]**
-</janusdiary>`
+</janusdiary>
+
+现在开始压缩：`
         },
         {
             name: '打工喵',
@@ -181,7 +184,9 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 2. 时序严格：事件按时间先后排列，保留因果链，不得打乱顺序。
 3. 交叉校验：若各档案存在相互矛盾的记录，以最新档案为准并在事件描述中简要注明差异。
 4. 状态更新：[待完成事件]与[重要物品]必须基于最新档案去除已完成、已失效或已消耗的条目；[角色成长]保留最新的阶段性结论。
-5. 格式一致：输出严格遵循上方【总结】结构，不得新增或省略小节。`
+5. 格式一致：输出严格遵循上方【总结】结构，不得新增或省略小节。
+
+现在开始压缩：`
         }
     ];
 
@@ -202,6 +207,60 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 
     function getCtx(): any {
         return (window as any).SillyTavern.getContext();
+    }
+
+    // ── extension_settings 持久化（跨设备同步到 settings.json） ──────────────
+
+    const SETTINGS_NS = 'simple-box';
+
+    function getExtSettings(): Record<string, any> {
+        try {
+            const ctx = getCtx();
+            const ext = ctx?.extensionSettings;
+            if (ext) {
+                if (!ext[SETTINGS_NS]) ext[SETTINGS_NS] = {};
+                return ext[SETTINGS_NS];
+            }
+        } catch {}
+        return {};
+    }
+
+    function saveSetting(key: string, value: any): void {
+        try {
+            const ctx = getCtx();
+            getExtSettings()[key] = value;
+            ctx?.saveSettingsDebounced?.();
+        } catch {
+            try { localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value)); } catch {}
+        }
+    }
+
+    function loadSetting(key: string): string | null {
+        try {
+            const s = getExtSettings();
+            if (key in s && s[key] !== null && s[key] !== undefined) return String(s[key]);
+            const lv = localStorage.getItem(key);
+            if (lv !== null) saveSetting(key, lv);
+            return lv;
+        } catch {
+            return localStorage.getItem(key);
+        }
+    }
+
+    function loadSettingJSON<T>(key: string, def: T): T {
+        try {
+            const s = getExtSettings();
+            if (key in s && s[key] !== null && s[key] !== undefined) return s[key] as T;
+            const lv = localStorage.getItem(key);
+            if (lv !== null) {
+                try {
+                    const parsed = JSON.parse(lv) as T;
+                    saveSetting(key, parsed);
+                    return parsed;
+                } catch {}
+            }
+        } catch {}
+        return def;
     }
 
     function getInputVal(id: string): string {
@@ -236,9 +295,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         return (r?.value ?? 'assistant') as LaunchRole;
     }
 
-    function getTriggerText(): string {
-        return getInputVal('cpr-trigger-text').trim() || '角色扮演暂停，请对上方所有档案进行压缩归档';
-    }
 
     function getOutBookName(): string {
         return getInputVal('cpr-out-bookname').trim();
@@ -298,13 +354,18 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         return null;
     }
 
+    function getWiDepth(): number {
+        const v = parseInt(getInputVal('cpr-wi-depth'), 10);
+        return isNaN(v) ? 9999 : Math.max(0, v);
+    }
+
     function makeWiEntry(uid: number, comment: string, content: string): any {
         return {
             uid, key: [], keysecondary: [], comment, content,
             constant: true, selective: true, selectiveLogic: 0,
             addMemo: false, order: 100, position: 4, disable: false,
             excludeRecursion: false, preventRecursion: false, delayUntilRecursion: 0,
-            probability: 100, useProbability: true, depth: 9999,
+            probability: 100, useProbability: true, depth: getWiDepth(),
             group: '', groupOverride: false, groupWeight: 100,
             scanDepth: null, caseSensitive: null, matchWholeWords: null,
             useGroupScoring: null, automationId: '', role: 0,
@@ -320,7 +381,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         entry.constant = true;
         entry.selective = true;
         entry.position = 4;
-        entry.depth = 9999;
+        entry.depth = getWiDepth();
         entry.role = 0;
     }
 
@@ -350,11 +411,11 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 
     function populateAllBookSelects(): void {
         const outSel = document.getElementById('cpr-out-bookname') as HTMLSelectElement | null;
-        if (outSel) populateSelectWithBooks(outSel, localStorage.getItem(SK_OUT_BOOKNAME) ?? '');
+        if (outSel) populateSelectWithBooks(outSel, loadSetting(SK_OUT_BOOKNAME) ?? '');
 
         const browseSel = document.getElementById('cpr-browse-bookname') as HTMLSelectElement | null;
         if (browseSel) {
-            populateSelectWithBooks(browseSel, localStorage.getItem(SK_BROWSE_BOOKNAME) ?? '');
+            populateSelectWithBooks(browseSel, loadSetting(SK_BROWSE_BOOKNAME) ?? '');
             if (browseSel.value) loadBrowseEntries(browseSel.value);
         }
     }
@@ -466,7 +527,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     let dragSrcIdx: number = -1;
 
     function persistEntries(): void {
-        saveJSON(SK_ENTRIES, entries);
+        saveSetting(SK_ENTRIES, entries);
     }
 
     function renderEntryList(): void {
@@ -728,7 +789,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     async function executeCompression(isReroll: boolean = false): Promise<void> {
         const prompt = getInputVal('cpr-prompt').trim();
         const launchRole  = getLaunchRole();
-        const triggerText = getTriggerText();
 
         if (!prompt) {
             if (typeof toastr !== 'undefined') toastr.warning('请填写压缩提示词。', '总结的总结');
@@ -798,11 +858,9 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         await delay(200);
 
         // ── 触发生成 ─────────────────────────────────────────────
-        const roleNum = launchRole === 'assistant' ? ROLE_ASSISTANT : ROLE_SYSTEM;
         if (launchRole === 'assistant') {
             injectAtPosition(INJECT_KEY_USER, '（压缩任务触发）', POS_IN_CHAT, 0, ROLE_USER, true);
         }
-        injectAtPosition(INJECT_KEY_LAUNCH, triggerText, POS_IN_CHAT, 0, roleNum, true);
 
         await delay(200);
         await triggerGeneration();
@@ -918,7 +976,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             if (!session.pendingPreview || typeof text !== 'string') return;
             const el = document.getElementById('cpr-preview') as HTMLTextAreaElement | null;
             if (el) {
-                el.removeAttribute('readonly');
                 el.value = cleanAiResponse(text);
                 setPreviewStatus('生成中...');
             }
@@ -930,8 +987,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             await delay(200);
             updatePreviewFromLatestMessage();
             updateContinueBtnState();
-            const el = document.getElementById('cpr-preview') as HTMLTextAreaElement | null;
-            if (el) el.setAttribute('readonly', '');
         });
 
         eventSource.on(eventTypes.GENERATION_STOPPED, () => {
@@ -939,8 +994,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             session.pendingPreview = false;
             setPreviewStatus('生成已停止');
             updateContinueBtnState();
-            const el = document.getElementById('cpr-preview') as HTMLTextAreaElement | null;
-            if (el) el.setAttribute('readonly', '');
         });
     }
 
@@ -1001,7 +1054,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         } else {
             presets.push({ name: trimmed, prompt });
         }
-        saveJSON(SK_PRESETS, presets);
+        saveSetting(SK_PRESETS, presets);
         refreshPresetSelect();
         if (typeof toastr !== 'undefined') toastr.success(`已保存预设「${trimmed}」。`, '总结的总结', { timeOut: 2000 });
     }
@@ -1016,7 +1069,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         if (isNaN(idx) || !presets[idx]) return;
         if (!window.confirm(`确定删除预设「${presets[idx].name}」？`)) return;
         presets.splice(idx, 1);
-        saveJSON(SK_PRESETS, presets);
+        saveSetting(SK_PRESETS, presets);
         refreshPresetSelect();
         if (typeof toastr !== 'undefined') toastr.success('预设已删除。下次刷新将自动恢复内置预设。', '总结的总结', { timeOut: 2500 });
     }
@@ -1025,52 +1078,52 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 
     function persistState(): void {
         const ta = document.getElementById('cpr-prompt') as HTMLTextAreaElement | null;
-        if (ta) localStorage.setItem(SK_PROMPT, ta.value);
+        if (ta) saveSetting(SK_PROMPT, ta.value);
 
         const launchR = document.querySelector<HTMLInputElement>('input[name="cpr-launch-role"]:checked');
-        if (launchR) localStorage.setItem(SK_LAUNCH, launchR.value);
+        if (launchR) saveSetting(SK_LAUNCH, launchR.value);
 
-        const trigger = document.getElementById('cpr-trigger-text') as HTMLInputElement | null;
-        if (trigger) localStorage.setItem(SK_TRIGGER_TXT, trigger.value);
 
-        localStorage.setItem(SK_OUT_BOOKNAME,    getInputVal('cpr-out-bookname'));
-        localStorage.setItem(SK_OUT_ENTRYNAME,   getInputVal('cpr-out-entryname'));
-        localStorage.setItem(SK_BROWSE_BOOKNAME, getInputVal('cpr-browse-bookname'));
+        saveSetting(SK_OUT_BOOKNAME,    getInputVal('cpr-out-bookname'));
+        saveSetting(SK_OUT_ENTRYNAME,   getInputVal('cpr-out-entryname'));
+        saveSetting(SK_BROWSE_BOOKNAME, getInputVal('cpr-browse-bookname'));
         const wm = document.querySelector<HTMLInputElement>('input[name="cpr-write-mode"]:checked');
-        if (wm) localStorage.setItem(SK_WRITE_MODE, wm.value);
+        if (wm) saveSetting(SK_WRITE_MODE, wm.value);
 
         const extract = document.getElementById('cpr-wi-extract') as HTMLInputElement | null;
-        if (extract) localStorage.setItem(SK_WI_EXTRACT, extract.checked ? 'true' : 'false');
-        localStorage.setItem(SK_WI_EXTRACT_MODE, getExtractMode());
-        localStorage.setItem(SK_WI_EXTRACT_CUSTOM, getInputVal('cpr-wi-extract-custom'));
+        if (extract) saveSetting(SK_WI_EXTRACT, extract.checked ? 'true' : 'false');
+        saveSetting(SK_WI_EXTRACT_MODE, getExtractMode());
+        saveSetting(SK_WI_EXTRACT_CUSTOM, getInputVal('cpr-wi-extract-custom'));
+        saveSetting(SK_WI_DEPTH, getInputVal('cpr-wi-depth'));
     }
 
     function restoreState(): void {
         const ta = document.getElementById('cpr-prompt') as HTMLTextAreaElement | null;
-        if (ta) ta.value = localStorage.getItem(SK_PROMPT) ?? '';
+        if (ta) ta.value = loadSetting(SK_PROMPT) ?? '';
 
-        const savedRole = (localStorage.getItem(SK_LAUNCH) ?? 'assistant') as LaunchRole;
+        const savedRole = (loadSetting(SK_LAUNCH) ?? 'assistant') as LaunchRole;
         const r = document.querySelector<HTMLInputElement>(`input[name="cpr-launch-role"][value="${savedRole}"]`);
         if (r) r.checked = true;
 
-        const trigger = document.getElementById('cpr-trigger-text') as HTMLInputElement | null;
-        if (trigger) trigger.value = localStorage.getItem(SK_TRIGGER_TXT) ?? '角色扮演暂停，请对上方所有档案进行压缩归档';
 
         const outEntry = document.getElementById('cpr-out-entryname') as HTMLInputElement | null;
-        if (outEntry) outEntry.value = localStorage.getItem(SK_OUT_ENTRYNAME) ?? '档案压缩';
+        if (outEntry) outEntry.value = loadSetting(SK_OUT_ENTRYNAME) ?? '档案压缩';
 
-        const savedWriteMode = localStorage.getItem(SK_WRITE_MODE) ?? 'overwrite';
+        const savedWriteMode = loadSetting(SK_WRITE_MODE) ?? 'overwrite';
         const writeModeEl = document.querySelector<HTMLInputElement>(`input[name="cpr-write-mode"][value="${savedWriteMode}"]`);
         if (writeModeEl) writeModeEl.checked = true;
 
         const extract = document.getElementById('cpr-wi-extract') as HTMLInputElement | null;
-        if (extract) extract.checked = localStorage.getItem(SK_WI_EXTRACT) !== 'false';
+        if (extract) extract.checked = loadSetting(SK_WI_EXTRACT) !== 'false';
 
         const extractMode = document.getElementById('cpr-wi-extract-mode') as HTMLSelectElement | null;
-        if (extractMode) extractMode.value = localStorage.getItem(SK_WI_EXTRACT_MODE) ?? 'thinking';
+        if (extractMode) extractMode.value = loadSetting(SK_WI_EXTRACT_MODE) ?? 'thinking';
 
         const extractCustom = document.getElementById('cpr-wi-extract-custom') as HTMLInputElement | null;
-        if (extractCustom) extractCustom.value = localStorage.getItem(SK_WI_EXTRACT_CUSTOM) ?? '';
+        if (extractCustom) extractCustom.value = loadSetting(SK_WI_EXTRACT_CUSTOM) ?? '';
+
+        const wiDepthEl = document.getElementById('cpr-wi-depth') as HTMLInputElement | null;
+        if (wiDepthEl) wiDepthEl.value = loadSetting(SK_WI_DEPTH) ?? '9999';
 
         toggleCustomExtractInput();
     }
@@ -1083,7 +1136,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     document.addEventListener(`${EVENT_NS}continue`,        () => { continueCompression(); });
     document.addEventListener(`${EVENT_NS}refreshEntries`,  () => {
         const sel = document.getElementById('cpr-browse-bookname') as HTMLSelectElement | null;
-        if (sel?.value) { localStorage.setItem(SK_BROWSE_BOOKNAME, sel.value); loadBrowseEntries(sel.value); }
+        if (sel?.value) { saveSetting(SK_BROWSE_BOOKNAME, sel.value); loadBrowseEntries(sel.value); }
     });
     document.addEventListener(`${EVENT_NS}addChecked`,      () => { addCheckedEntries(); });
     document.addEventListener(`${EVENT_NS}clearAll`,        () => { clearAllEntries(); });
@@ -1116,8 +1169,8 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             if (!ctx) throw new Error('getContext() 返回空值');
 
             // 加载持久化数据
-            entries = loadJSON<CprEntry[]>(SK_ENTRIES, []);
-            presets = loadJSON<CprPreset[]>(SK_PRESETS, []);
+            entries = loadSettingJSON<CprEntry[]>(SK_ENTRIES, []);
+            presets = loadSettingJSON<CprPreset[]>(SK_PRESETS, []);
 
             // 清理已移除的内置预设
             presets = presets.filter(p => !REMOVED_DEFAULTS.includes(p.name));
@@ -1131,7 +1184,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
                     presets.unshift({ ...def });
                 }
             });
-            saveJSON(SK_PRESETS, presets);
+            saveSetting(SK_PRESETS, presets);
 
             restoreState();
             refreshPresetSelect();
