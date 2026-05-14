@@ -42,6 +42,7 @@
     const SK_WI_EXTRACT_MODE = 'smry_wi_extract_mode';
     const SK_WI_EXTRACT_CUSTOM = 'smry_wi_extract_custom';
     const SK_HIDE_SOURCE = 'smry_hide_source';
+    const SK_WI_DEPTH    = 'smry_wi_depth';
 
     // ── SillyTavern extension_prompt_types 数值 ──────────────────────────────
     const POS_IN_PROMPT = 0;   // "after"  : 主提示词末尾（系统区，玩家不可见）
@@ -144,7 +145,9 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 [5个一组循环直到所有角色档案生成]
 
 **[已完成[M+X]/N个角色，全部角色档案生成完成]**
-</janusdiary>`
+</janusdiary>
+
+现在开始总结：`
         },
         {
             name: '打工喵',
@@ -167,7 +170,9 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 总结要求:
 1. 逻辑重于流水账：合并细碎的对话日常，聚焦于能够推动剧情发展或改变角色的【关键事件】。
 2. 杜绝虚假描写：事件描述必须基于已发生的客观事实，禁止添加未发生的心理猜测。
-3. 动态关联：确保[角色成长]与上文提到的[时间段事件]有明确的因果关系。`
+3. 动态关联：确保[角色成长]与上文提到的[时间段事件]有明确的因果关系。
+
+现在开始总结：`
         }
     ];
 
@@ -188,6 +193,60 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 
     function getCtx(): any {
         return (window as any).SillyTavern.getContext();
+    }
+
+    // ── extension_settings 持久化（跨设备同步到 settings.json） ──────────────
+
+    const SETTINGS_NS = 'simple-box';
+
+    function getExtSettings(): Record<string, any> {
+        try {
+            const ctx = getCtx();
+            const ext = ctx?.extensionSettings;
+            if (ext) {
+                if (!ext[SETTINGS_NS]) ext[SETTINGS_NS] = {};
+                return ext[SETTINGS_NS];
+            }
+        } catch {}
+        return {};
+    }
+
+    function saveSetting(key: string, value: any): void {
+        try {
+            const ctx = getCtx();
+            getExtSettings()[key] = value;
+            ctx?.saveSettingsDebounced?.();
+        } catch {
+            try { localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value)); } catch {}
+        }
+    }
+
+    function loadSetting(key: string): string | null {
+        try {
+            const s = getExtSettings();
+            if (key in s && s[key] !== null && s[key] !== undefined) return String(s[key]);
+            const lv = localStorage.getItem(key);
+            if (lv !== null) saveSetting(key, lv);
+            return lv;
+        } catch {
+            return localStorage.getItem(key);
+        }
+    }
+
+    function loadSettingJSON<T>(key: string, def: T): T {
+        try {
+            const s = getExtSettings();
+            if (key in s && s[key] !== null && s[key] !== undefined) return s[key] as T;
+            const lv = localStorage.getItem(key);
+            if (lv !== null) {
+                try {
+                    const parsed = JSON.parse(lv) as T;
+                    saveSetting(key, parsed);
+                    return parsed;
+                } catch {}
+            }
+        } catch {}
+        return def;
     }
 
     function getInputVal(id: string): string {
@@ -346,9 +405,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         return (r?.value ?? 'assistant') as LaunchRole;
     }
 
-    function getTriggerText(): string {
-        return getInputVal('smry-trigger-text').trim() || '角色扮演暂停、剧情推进暂停，开始总结';
-    }
 
     // ── 世界书辅助 ────────────────────────────────────────────────────────────
 
@@ -392,7 +448,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     async function populateWorldBookSelect(): Promise<void> {
         const sel = document.getElementById('smry-wi-bookname') as HTMLSelectElement | null;
         if (!sel) return;
-        const saved = localStorage.getItem(SK_WI_BOOKNAME) ?? '';
+        const saved = loadSetting(SK_WI_BOOKNAME) ?? '';
         try {
             const wiMod = await getWiApi();
             const names: string[] = Array.isArray(wiMod.world_names) ? wiMod.world_names : [];
@@ -444,6 +500,11 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         }
         result = result.replace(/\n{3,}/g, '\n\n');
         return result.trim();
+    }
+
+    function getWiDepth(): number {
+        const v = parseInt(getInputVal('smry-wi-depth'), 10);
+        return isNaN(v) ? 9999 : Math.max(0, v);
     }
 
     /** Find first unused UID in a world-info data object */
@@ -504,7 +565,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         entry.constant = true;
         entry.selective = true;
         entry.position = 4;
-        entry.depth = 9999;
+        entry.depth = getWiDepth();
         entry.role = 0;
     }
 
@@ -778,7 +839,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             if (!summarySession.pendingPreview || typeof text !== 'string') return;
             const el = document.getElementById('smry-preview') as HTMLTextAreaElement | null;
             if (el) {
-                el.removeAttribute('readonly');
                 el.value = cleanAiResponse(text);
                 setPreviewStatus('生成中...');
             }
@@ -790,8 +850,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             await delay(200);
             updatePreviewFromLatestMessage();
             updateContinueBtnState();
-            const el = document.getElementById('smry-preview') as HTMLTextAreaElement | null;
-            if (el) el.setAttribute('readonly', '');
         });
 
         eventSource.on(eventTypes.GENERATION_STOPPED, () => {
@@ -799,8 +857,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             summarySession.pendingPreview = false;
             setPreviewStatus('生成已停止');
             updateContinueBtnState();
-            const el = document.getElementById('smry-preview') as HTMLTextAreaElement | null;
-            if (el) el.setAttribute('readonly', '');
         });
     }
 
@@ -809,7 +865,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     async function executeSummary(isReroll: boolean = false): Promise<void> {
         const promptA = getInputVal('smry-prompt-a').trim();
         const launchRole  = getLaunchRole();
-        const triggerText = getTriggerText();
 
         if (!promptA) {
             if (typeof toastr !== 'undefined') toastr.warning('请填写总结提示词。', '总结');
@@ -858,11 +913,9 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         await delay(200);
 
         // 按 C 选项触发
-        const roleNum = launchRole === 'assistant' ? ROLE_ASSISTANT : ROLE_SYSTEM;
         if (launchRole === 'assistant') {
             injectChatTrigger(INJECT_KEY_USER, '（总结任务触发）', ROLE_USER, true);
         }
-        injectChatTrigger(INJECT_KEY_LAUNCH, triggerText, roleNum, true);
         await delay(200);
         await triggerGeneration();
 
@@ -929,7 +982,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             presets.push({ name: trimmed, prompt });
         }
 
-        saveJSON(storageKey, presets);
+        saveSetting(storageKey, presets);
         refreshPresetSelect(section);
         if (typeof toastr !== 'undefined') toastr.success(`已保存总结「${trimmed}」。`, '总结', { timeOut: 2000 });
     }
@@ -951,7 +1004,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         if (!window.confirm(`确定删除总结「${presets[idx].name}」？`)) return;
 
         presets.splice(idx, 1);
-        saveJSON(storageKey, presets);
+        saveSetting(storageKey, presets);
         refreshPresetSelect(section);
         if (typeof toastr !== 'undefined') toastr.success('总结已删除。', '总结', { timeOut: 2000 });
     }
@@ -975,45 +1028,44 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     // ── 状态持久化 ────────────────────────────────────────────────────────────
 
     function persistState(): void {
-        localStorage.setItem(SK_PROMPT_A,    getInputVal('smry-prompt-a'));
-        localStorage.setItem(SK_START_FLOOR, getInputVal('smry-start-floor'));
-        localStorage.setItem(SK_END_FLOOR,   getInputVal('smry-end-floor'));
-        localStorage.setItem(SK_TRIGGER_TXT, getInputVal('smry-trigger-text'));
+        saveSetting(SK_PROMPT_A,    getInputVal('smry-prompt-a'));
+        saveSetting(SK_START_FLOOR, getInputVal('smry-start-floor'));
+        saveSetting(SK_END_FLOOR,   getInputVal('smry-end-floor'));
 
         const launchR = document.querySelector<HTMLInputElement>('input[name="smry-launch-role"]:checked');
-        if (launchR) localStorage.setItem(SK_LAUNCH, launchR.value);
+        if (launchR) saveSetting(SK_LAUNCH, launchR.value);
 
         // 世界书设置
-        localStorage.setItem(SK_WI_BOOKNAME, getInputVal('smry-wi-bookname'));
-        localStorage.setItem(SK_WI_ENTRY,    getInputVal('smry-wi-entryname'));
+        saveSetting(SK_WI_BOOKNAME, getInputVal('smry-wi-bookname'));
+        saveSetting(SK_WI_ENTRY,    getInputVal('smry-wi-entryname'));
         const wiMode = document.querySelector<HTMLInputElement>('input[name="smry-wi-mode"]:checked');
-        if (wiMode) localStorage.setItem(SK_WI_MODE, wiMode.value);
+        if (wiMode) saveSetting(SK_WI_MODE, wiMode.value);
         const wiExt = document.getElementById('smry-wi-extract') as HTMLInputElement | null;
-        if (wiExt) localStorage.setItem(SK_WI_EXTRACT, wiExt.checked ? 'true' : 'false');
-        localStorage.setItem(SK_WI_EXTRACT_MODE, getExtractMode());
-        localStorage.setItem(SK_WI_EXTRACT_CUSTOM, getInputVal('smry-wi-extract-custom'));
+        if (wiExt) saveSetting(SK_WI_EXTRACT, wiExt.checked ? 'true' : 'false');
+        saveSetting(SK_WI_EXTRACT_MODE, getExtractMode());
+        saveSetting(SK_WI_EXTRACT_CUSTOM, getInputVal('smry-wi-extract-custom'));
         const hideSource = document.getElementById('smry-hide-source') as HTMLInputElement | null;
-        if (hideSource) localStorage.setItem(SK_HIDE_SOURCE, hideSource.checked ? 'true' : 'false');
+        if (hideSource) saveSetting(SK_HIDE_SOURCE, hideSource.checked ? 'true' : 'false');
+        saveSetting(SK_WI_DEPTH, getInputVal('smry-wi-depth'));
     }
 
     function restoreState(): void {
         const set = (id: string, key: string, fallback: string = '') => {
             const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
-            if (el) el.value = localStorage.getItem(key) ?? fallback;
+            if (el) el.value = loadSetting(key) ?? fallback;
         };
 
         set('smry-prompt-a',    SK_PROMPT_A);
         set('smry-start-floor', SK_START_FLOOR);
         set('smry-end-floor',   SK_END_FLOOR);
-        set('smry-trigger-text', SK_TRIGGER_TXT, '角色扮演暂停、剧情推进暂停，开始总结');
 
         // 启动角色
-        const savedRole = (localStorage.getItem(SK_LAUNCH) ?? 'assistant') as LaunchRole;
+        const savedRole = (loadSetting(SK_LAUNCH) ?? 'assistant') as LaunchRole;
         const r = document.querySelector<HTMLInputElement>(`input[name="smry-launch-role"][value="${savedRole}"]`);
         if (r) r.checked = true;
 
         // 预设列表：内置预设强制同步（覆盖同名旧内容，补充缺失项），用户预设不受影响
-        presets_a = loadJSON<SummaryPreset[]>(SK_PRESETS_A, []);
+        presets_a = loadSettingJSON<SummaryPreset[]>(SK_PRESETS_A, []);
         let defaultsChanged = false;
         DEFAULT_PRESETS.forEach(def => {
             const idx = presets_a.findIndex(p => p.name === def.name);
@@ -1028,24 +1080,26 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             }
         });
         if (defaultsChanged) {
-            saveJSON(SK_PRESETS_A, presets_a);
+            saveSetting(SK_PRESETS_A, presets_a);
         }
         refreshPresetSelect('A');
 
         // 世界书设置（bookname 由 populateWorldBookSelect 异步处理）
-        const savedEntry = localStorage.getItem(SK_WI_ENTRY);
+        const savedEntry = loadSetting(SK_WI_ENTRY);
         const wiEntryEl = document.getElementById('smry-wi-entryname') as HTMLInputElement | null;
         if (wiEntryEl && savedEntry !== null) wiEntryEl.value = savedEntry;
-        const savedMode = localStorage.getItem(SK_WI_MODE) ?? 'overwrite';
+        const savedMode = loadSetting(SK_WI_MODE) ?? 'overwrite';
         const wiModeEl = document.querySelector<HTMLInputElement>(`input[name="smry-wi-mode"][value="${savedMode}"]`);
         if (wiModeEl) wiModeEl.checked = true;
         const wiExtEl = document.getElementById('smry-wi-extract') as HTMLInputElement | null;
-        if (wiExtEl) wiExtEl.checked = localStorage.getItem(SK_WI_EXTRACT) !== 'false';
+        if (wiExtEl) wiExtEl.checked = loadSetting(SK_WI_EXTRACT) !== 'false';
         const extractModeEl = document.getElementById('smry-wi-extract-mode') as HTMLSelectElement | null;
-        if (extractModeEl) extractModeEl.value = localStorage.getItem(SK_WI_EXTRACT_MODE) ?? 'thinking';
+        if (extractModeEl) extractModeEl.value = loadSetting(SK_WI_EXTRACT_MODE) ?? 'thinking';
         set('smry-wi-extract-custom', SK_WI_EXTRACT_CUSTOM);
         const hideSourceEl = document.getElementById('smry-hide-source') as HTMLInputElement | null;
-        if (hideSourceEl) hideSourceEl.checked = localStorage.getItem(SK_HIDE_SOURCE) !== 'false';
+        if (hideSourceEl) hideSourceEl.checked = loadSetting(SK_HIDE_SOURCE) !== 'false';
+        const wiDepthEl = document.getElementById('smry-wi-depth') as HTMLInputElement | null;
+        if (wiDepthEl) wiDepthEl.value = loadSetting(SK_WI_DEPTH) ?? '9999';
         toggleCustomExtractInput();
         clearPreview();
     }
@@ -1104,7 +1158,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
                 document.getElementById(id)?.addEventListener('input', persistState)
             );
             ['smry-start-floor', 'smry-end-floor', 'smry-trigger-text',
-             'smry-wi-bookname', 'smry-wi-entryname', 'smry-wi-extract-custom'].forEach(id =>
+             'smry-wi-bookname', 'smry-wi-entryname', 'smry-wi-extract-custom', 'smry-wi-depth'].forEach(id =>
                 document.getElementById(id)?.addEventListener('change', persistState)
             );
             document.querySelectorAll<HTMLInputElement>('input[name="smry-launch-role"]').forEach(r =>

@@ -90,17 +90,6 @@
 
         </div>
 
-        <!-- 触发文本 -->
-        <div class="smry-trigger-row">
-            <label for="smry-trigger-text" class="smry-trigger-label">触发文本</label>
-            <input
-                type="text"
-                id="smry-trigger-text"
-                class="smry-trigger-input"
-                value="角色扮演暂停、剧情推进暂停，开始总结"
-                placeholder="角色扮演暂停、剧情推进暂停，开始总结"
-            />
-        </div>
     </div>
 
     <!-- ── 执行按钮区 ─────────────────────────────────────────────── -->
@@ -173,6 +162,19 @@
                         <span>追加</span>
                     </label>
                 </div>
+                <div class="smry-wi-mode-group" style="margin-left:auto">
+                    <span class="smry-wi-label smry-wi-label--inline">插入深度</span>
+                    <input
+                        type="number"
+                        id="smry-wi-depth"
+                        class="smry-wi-input smry-wi-input--compact"
+                        value="9999"
+                        min="0"
+                        max="9999"
+                        style="width:70px"
+                        title="世界书条目的 depth 值（0=最新消息附近，9999=最早）"
+                    />
+                </div>
             </div>
 
             <div class="smry-wi-control-row">
@@ -208,6 +210,7 @@
             </div>
 
 
+
         </div>
     </div>
 
@@ -226,7 +229,6 @@
             class="smry-textarea smry-preview-textarea"
             rows="10"
             placeholder="开始总结后，这里会同步显示将写入世界书的内容。"
-            readonly
         ></textarea>
 
         <div class="smry-preview-actions">
