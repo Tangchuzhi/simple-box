@@ -1,6 +1,6 @@
 {
     "name": "simple-box",
-    "version": "1.3.2",
+    "version": "1.4.0",
     "scripts": {
         "sync:version": "node scripts/sync-version.js",
         "build": "npm run sync:version && tsc",
