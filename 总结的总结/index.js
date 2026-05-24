@@ -24,7 +24,6 @@
     const SK_ENTRIES = 'cpr_entries';
     const SK_PRESETS = 'cpr_presets';
     const SK_PROMPT = 'cpr_prompt';
-    const SK_LAUNCH = 'cpr_launch_role';
     const SK_TRIGGER_TXT = 'cpr_trigger_text';
     const SK_OUT_BOOKNAME = 'cpr_out_bookname';
     const SK_OUT_ENTRYNAME = 'cpr_out_entryname';
@@ -34,23 +33,25 @@
     const SK_BROWSE_BOOKNAME = 'cpr_browse_bookname';
     const SK_WRITE_MODE = 'cpr_write_mode';
     const SK_WI_DEPTH = 'cpr_wi_depth';
-    // ── SillyTavern 注入位置常量 ──────────────────────────────────────────────
+    // ── SillyTavern extension_prompt_types 数值 ──────────────────────────────
     const POS_IN_PROMPT = 0; // 主提示词末尾（系统区）
-    const POS_IN_CHAT = 1; // 聊天历史中（按 depth 定位）
-    // ── SillyTavern 角色常量 ─────────────────────────────────────────────────
+    const POS_IN_CHAT = 1; // 聊天历史中（指定 depth）
+    // ── SillyTavern extension_prompt_roles 数值 ──────────────────────────────
     const ROLE_SYSTEM = 0;
     const ROLE_USER = 1;
     const ROLE_ASSISTANT = 2;
     // ── 注入 key ─────────────────────────────────────────────────────────────
-    const INJECT_KEY_ARCHIVE = 'cpr-archive'; // 档案内容（模拟历史）
-    const INJECT_KEY_PROMPT = 'cpr-prompt'; // 压缩提示词
-    const INJECT_KEY_LAUNCH = 'cpr-launch'; // 触发消息
+    const INJECT_KEY_ARCHIVE = 'cpr-archive'; // 档案内容（IN_CHAT 高深度）
     const INJECT_KEY_USER = 'cpr-user-pad'; // assistant 模式前置 user 占位
     // ── 模块状态 ─────────────────────────────────────────────────────────────
     let entries = [];
     let presets = [];
     let wiBookNames = [];
     let browseBookEntries = [];
+    let pendingSummaryPrompt = null;
+    let activeSummaryPrompt = null;
+    let activeArchiveBlock = null;
+    let isContinueGeneration = false;
     let session = {
         generatedMessageId: null,
         pendingPreview: false,
@@ -252,11 +253,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             el.textContent = text;
     }
     // ── UI 辅助 ───────────────────────────────────────────────────────────────
-    function getLaunchRole() {
-        var _a;
-        const r = document.querySelector('input[name="cpr-launch-role"]:checked');
-        return ((_a = r === null || r === void 0 ? void 0 : r.value) !== null && _a !== void 0 ? _a : 'assistant');
-    }
     function getOutBookName() {
         return getInputVal('cpr-out-bookname').trim();
     }
@@ -552,7 +548,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             list.appendChild(row);
         });
     }
-    // ── 注入辅助 ─────────────────────────────────────────────────────────────
+    // ── 注入管理 ─────────────────────────────────────────────────────────────
     function injectAtPosition(key, content, position, depth, role, ephemeral) {
         const ctx = getCtx();
         if (typeof ctx.setExtensionPrompt !== 'function') {
@@ -560,9 +556,10 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             return;
         }
         ctx.setExtensionPrompt(`script_inject_${key}`, content, position, depth, false, role);
-        console.log(`${LOG_PREFIX} 已注入 [${key}] pos=${position} depth=${depth} role=${role} len=${content.length}`);
-        if (ephemeral)
+        console.log(`${LOG_PREFIX} 已注入 [${key}] pos=${position} depth=${depth} 长度 ${content.length}`);
+        if (ephemeral) {
             scheduleEphemeralCleanup(key, position, role);
+        }
     }
     function scheduleEphemeralCleanup(key, position, role) {
         var _a;
@@ -590,17 +587,34 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         ctx.setExtensionPrompt(`script_inject_${key}`, '', position, 0, false, role);
         console.log(`${LOG_PREFIX} 已清理注入 [${key}]`);
     }
-    // ── 斜杠命令 & 触发生成 ─────────────────────────────────────────────────
+    // ── 生成触发 ─────────────────────────────────────────────────────────────
     function callSlashCommand(cmd) {
         const ta = document.querySelector('#send_textarea');
         const btn = document.querySelector('#send_but');
         if (!ta || !btn) {
             console.error(`${LOG_PREFIX} 找不到输入框或发送按钮`);
+            if (typeof toastr !== 'undefined')
+                toastr.error('找不到 SillyTavern 输入框或发送按钮。', '总结的总结');
             return;
         }
         ta.value = cmd;
         ta.dispatchEvent(new Event('input', { bubbles: true }));
         btn.click();
+    }
+    async function triggerGeneration() {
+        const ctx = getCtx();
+        try {
+            if (typeof ctx.executeSlashCommandsWithOptions === 'function') {
+                await ctx.executeSlashCommandsWithOptions('/trigger');
+            }
+            else {
+                callSlashCommand('/trigger');
+            }
+        }
+        catch (err) {
+            console.warn(`${LOG_PREFIX} triggerGeneration 降级:`, err);
+            callSlashCommand('/trigger');
+        }
     }
     async function execSlashCmd(cmd) {
         const ctx = getCtx();
@@ -614,61 +628,46 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             }
         }
         catch (err) {
-            console.warn(`${LOG_PREFIX} execSlashCmd 失败，降级: ${cmd}`, err);
+            console.warn(`${LOG_PREFIX} execSlashCmd 降级: ${cmd}`, err);
             callSlashCommand(cmd);
             await delay(100);
         }
     }
-    async function triggerGeneration() {
-        const ctx = getCtx();
-        try {
-            if (typeof ctx.executeSlashCommandsWithOptions === 'function') {
-                await ctx.executeSlashCommandsWithOptions('/trigger');
-            }
-            else {
-                callSlashCommand('/trigger');
-            }
-        }
-        catch (err) {
-            console.warn(`${LOG_PREFIX} executeSlashCommandsWithOptions 失败，降级`, err);
-            callSlashCommand('/trigger');
-        }
-    }
-    // ── 楼层隐藏 / 恢复 ──────────────────────────────────────────────────────
+    // ── 楼层隐藏管理 ─────────────────────────────────────────────────────────
     function groupIntoRanges(indices) {
         if (indices.length === 0)
             return [];
         const sorted = [...indices].sort((a, b) => a - b);
         const ranges = [];
-        let rangeStart = sorted[0], prev = sorted[0];
+        let rs = sorted[0], re = sorted[0];
         for (let i = 1; i < sorted.length; i++) {
-            if (sorted[i] !== prev + 1) {
-                ranges.push({ start: rangeStart, end: prev });
-                rangeStart = sorted[i];
+            if (sorted[i] === re + 1) {
+                re = sorted[i];
             }
-            prev = sorted[i];
+            else {
+                ranges.push({ start: rs, end: re });
+                rs = sorted[i];
+                re = sorted[i];
+            }
         }
-        ranges.push({ start: rangeStart, end: prev });
+        ranges.push({ start: rs, end: re });
         return ranges;
     }
     async function hideAllFloors() {
-        var _a, _b, _c, _d;
+        var _a, _b, _c;
         const ctx = getCtx();
-        const chat = (_a = ctx.chat) !== null && _a !== void 0 ? _a : [];
-        if (chat.length === 0)
+        const chatLength = Array.isArray(ctx.chat) ? ctx.chat.length : 0;
+        if (chatLength === 0)
             return;
         const toHide = [];
-        for (let i = 0; i < chat.length; i++) {
-            if (((_b = chat[i]) === null || _b === void 0 ? void 0 : _b.is_system) !== true && !((_d = (_c = chat[i]) === null || _c === void 0 ? void 0 : _c.extra) === null || _d === void 0 ? void 0 : _d.hidden)) {
+        for (let i = 0; i < chatLength; i++) {
+            if (((_a = ctx.chat[i]) === null || _a === void 0 ? void 0 : _a.is_system) !== true && !((_c = (_b = ctx.chat[i]) === null || _b === void 0 ? void 0 : _b.extra) === null || _c === void 0 ? void 0 : _c.hidden))
                 toHide.push(i);
-            }
         }
         session.hiddenFloors = toHide;
         session.floorsHidden = true;
-        if (chat.length > 0) {
-            await execSlashCmd(`/hide 0-${chat.length - 1}`);
-        }
-        console.log(`${LOG_PREFIX} 已隐藏全部 ${toHide.length} 条楼层`);
+        await execSlashCmd(`/hide 0-${chatLength - 1}`);
+        console.log(`${LOG_PREFIX} 已隐藏全部楼层，共 ${toHide.length} 条`);
     }
     async function restoreHiddenFloors() {
         if (!session.floorsHidden)
@@ -679,7 +678,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         }
         session.hiddenFloors = [];
         session.floorsHidden = false;
-        console.log(`${LOG_PREFIX} 已恢复压缩临时隐藏楼层`);
+        console.log(`${LOG_PREFIX} 已恢复全部隐藏楼层`);
     }
     // ── 世界书写入 ────────────────────────────────────────────────────────────
     async function saveToWorldInfo(content) {
@@ -745,7 +744,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     async function executeCompression(isReroll = false) {
         var _a;
         const prompt = getInputVal('cpr-prompt').trim();
-        const launchRole = getLaunchRole();
         if (!prompt) {
             if (typeof toastr !== 'undefined')
                 toastr.warning('请填写压缩提示词。', '总结的总结');
@@ -794,9 +792,11 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         }
         // ── 将条目内容注入为模拟聊天历史（assistant 角色，高深度 = 靠前） ──
         const archiveBlock = blocks.join('\n\n---\n\n');
-        injectAtPosition(INJECT_KEY_ARCHIVE, archiveBlock, POS_IN_CHAT, 9999, ROLE_ASSISTANT, true);
-        // ── 注入压缩提示词到系统区 ───────────────────────────────
-        injectAtPosition(INJECT_KEY_PROMPT, prompt, POS_IN_PROMPT, 0, ROLE_SYSTEM, true);
+        activeArchiveBlock = archiveBlock;
+        injectAtPosition(INJECT_KEY_ARCHIVE, archiveBlock, POS_IN_CHAT, 9999, ROLE_USER, true);
+        // ── 通过事件钩子将压缩提示词追加到上下文最末尾（在 JB/PHI 之后）──
+        pendingSummaryPrompt = prompt;
+        activeSummaryPrompt = prompt;
         // ── 首次执行：隐藏全部聊天楼层 ──────────────────────────
         if (!isReroll) {
             if (session.floorsHidden)
@@ -809,12 +809,8 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         }
         await delay(200);
         // ── 触发生成 ─────────────────────────────────────────────
-        if (launchRole === 'assistant') {
-            injectAtPosition(INJECT_KEY_USER, '（压缩任务触发）', POS_IN_CHAT, 0, ROLE_USER, true);
-        }
-        await delay(200);
         await triggerGeneration();
-        console.log(`${LOG_PREFIX} 压缩触发完成，条目数: ${blocks.length}，模式: ${launchRole}`);
+        console.log(`${LOG_PREFIX} 压缩触发完成，条目数: ${blocks.length}`);
     }
     // ── 预览管理 ──────────────────────────────────────────────────────────────
     function getLatestAiMessageInfo() {
@@ -840,6 +836,8 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         setPreviewStatus('已生成，等待确认');
     }
     async function finalizeToWorldInfo() {
+        activeSummaryPrompt = null;
+        activeArchiveBlock = null;
         const preview = getPreviewText();
         if (!preview) {
             if (typeof toastr !== 'undefined')
@@ -883,6 +881,8 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         await executeCompression(true);
     }
     function clearPreview() {
+        activeSummaryPrompt = null;
+        activeArchiveBlock = null;
         setPreviewText('');
         setPreviewStatus('待生成');
         session.generatedMessageId = null;
@@ -899,6 +899,10 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         }
         setPreviewStatus('继续生成中...');
         session.pendingPreview = true;
+        isContinueGeneration = true;
+        if (activeArchiveBlock) {
+            injectAtPosition(INJECT_KEY_ARCHIVE, activeArchiveBlock, POS_IN_CHAT, 9999, ROLE_USER, true);
+        }
         updateContinueBtnState();
         await execSlashCmd('/continue');
     }
@@ -918,13 +922,36 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         eventSource.on(eventTypes.STREAM_TOKEN_RECEIVED, (text) => {
             if (!session.pendingPreview || typeof text !== 'string')
                 return;
+            if (isContinueGeneration) {
+                setPreviewStatus('继续生成中...');
+                return;
+            }
             const el = document.getElementById('cpr-preview');
             if (el) {
                 el.value = cleanAiResponse(text);
                 setPreviewStatus('生成中...');
             }
         });
+        eventSource.on(eventTypes.CHAT_COMPLETION_PROMPT_READY, (data) => {
+            if (!pendingSummaryPrompt || data.dryRun)
+                return;
+            const chat = data.chat;
+            const last = chat[chat.length - 1];
+            if ((last === null || last === void 0 ? void 0 : last.role) === 'assistant') {
+                chat.splice(chat.length - 1, 0, { role: 'user', content: pendingSummaryPrompt });
+            }
+            else {
+                chat.push({ role: 'user', content: pendingSummaryPrompt });
+            }
+        });
+        eventSource.on(eventTypes.GENERATE_AFTER_COMBINE_PROMPTS, (data) => {
+            if (!pendingSummaryPrompt)
+                return;
+            data.prompt += '\n\n' + pendingSummaryPrompt;
+        });
         eventSource.on(eventTypes.GENERATION_ENDED, async () => {
+            pendingSummaryPrompt = null;
+            isContinueGeneration = false;
             if (!session.pendingPreview)
                 return;
             session.pendingPreview = false;
@@ -933,6 +960,8 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             updateContinueBtnState();
         });
         eventSource.on(eventTypes.GENERATION_STOPPED, () => {
+            pendingSummaryPrompt = null;
+            isContinueGeneration = false;
             if (!session.pendingPreview)
                 return;
             session.pendingPreview = false;
@@ -1032,9 +1061,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         const ta = document.getElementById('cpr-prompt');
         if (ta)
             saveSetting(SK_PROMPT, ta.value);
-        const launchR = document.querySelector('input[name="cpr-launch-role"]:checked');
-        if (launchR)
-            saveSetting(SK_LAUNCH, launchR.value);
         saveSetting(SK_OUT_BOOKNAME, getInputVal('cpr-out-bookname'));
         saveSetting(SK_OUT_ENTRYNAME, getInputVal('cpr-out-entryname'));
         saveSetting(SK_BROWSE_BOOKNAME, getInputVal('cpr-browse-bookname'));
@@ -1049,18 +1075,14 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         saveSetting(SK_WI_DEPTH, getInputVal('cpr-wi-depth'));
     }
     function restoreState() {
-        var _a, _b, _c, _d, _e, _f, _g;
+        var _a, _b, _c, _d, _e, _f;
         const ta = document.getElementById('cpr-prompt');
         if (ta)
             ta.value = (_a = loadSetting(SK_PROMPT)) !== null && _a !== void 0 ? _a : '';
-        const savedRole = ((_b = loadSetting(SK_LAUNCH)) !== null && _b !== void 0 ? _b : 'assistant');
-        const r = document.querySelector(`input[name="cpr-launch-role"][value="${savedRole}"]`);
-        if (r)
-            r.checked = true;
         const outEntry = document.getElementById('cpr-out-entryname');
         if (outEntry)
-            outEntry.value = (_c = loadSetting(SK_OUT_ENTRYNAME)) !== null && _c !== void 0 ? _c : '档案压缩';
-        const savedWriteMode = (_d = loadSetting(SK_WRITE_MODE)) !== null && _d !== void 0 ? _d : 'overwrite';
+            outEntry.value = (_b = loadSetting(SK_OUT_ENTRYNAME)) !== null && _b !== void 0 ? _b : '档案压缩';
+        const savedWriteMode = (_c = loadSetting(SK_WRITE_MODE)) !== null && _c !== void 0 ? _c : 'overwrite';
         const writeModeEl = document.querySelector(`input[name="cpr-write-mode"][value="${savedWriteMode}"]`);
         if (writeModeEl)
             writeModeEl.checked = true;
@@ -1069,13 +1091,13 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             extract.checked = loadSetting(SK_WI_EXTRACT) !== 'false';
         const extractMode = document.getElementById('cpr-wi-extract-mode');
         if (extractMode)
-            extractMode.value = (_e = loadSetting(SK_WI_EXTRACT_MODE)) !== null && _e !== void 0 ? _e : 'thinking';
+            extractMode.value = (_d = loadSetting(SK_WI_EXTRACT_MODE)) !== null && _d !== void 0 ? _d : 'thinking';
         const extractCustom = document.getElementById('cpr-wi-extract-custom');
         if (extractCustom)
-            extractCustom.value = (_f = loadSetting(SK_WI_EXTRACT_CUSTOM)) !== null && _f !== void 0 ? _f : '';
+            extractCustom.value = (_e = loadSetting(SK_WI_EXTRACT_CUSTOM)) !== null && _e !== void 0 ? _e : '';
         const wiDepthEl = document.getElementById('cpr-wi-depth');
         if (wiDepthEl)
-            wiDepthEl.value = (_g = loadSetting(SK_WI_DEPTH)) !== null && _g !== void 0 ? _g : '9999';
+            wiDepthEl.value = (_f = loadSetting(SK_WI_DEPTH)) !== null && _f !== void 0 ? _f : '9999';
         toggleCustomExtractInput();
     }
     // ── 自定义事件监听 ────────────────────────────────────────────────────────
