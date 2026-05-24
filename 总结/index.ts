@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 总结 — 功能模块
  *
  * 职责：
@@ -30,7 +30,6 @@
     // ── localStorage 键名 ────────────────────────────────────────────────────
     const SK_PRESETS_A   = 'smry_presets_a';
     const SK_PROMPT_A    = 'smry_prompt_a';
-    const SK_LAUNCH      = 'smry_launch_role';
     const SK_TRIGGER_TXT = 'smry_trigger_text';
     const SK_START_FLOOR = 'smry_start_floor';
     const SK_END_FLOOR   = 'smry_end_floor';
@@ -63,7 +62,6 @@
         prompt: string;
     }
 
-    type LaunchRole = 'assistant' | 'system';
     type ExtractMode = 'thinking' | 'think' | 'custom';
 
     interface SummarySession {
@@ -76,6 +74,10 @@
     }
 
     let presets_a: SummaryPreset[] = [];
+    let pendingSummaryPrompt:  string | null = null;
+    let activeSummaryPrompt:   string | null = null;
+    let isContinueGeneration:  boolean       = false;
+
     let summarySession: SummarySession = {
         start: 0,
         end: 0,
@@ -288,11 +290,11 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             return;
         }
         const prefixed = `script_inject_${key}`;
-        ctx.setExtensionPrompt(prefixed, content, POS_IN_PROMPT, 0, false, ROLE_SYSTEM);
+        ctx.setExtensionPrompt(prefixed, content, POS_IN_CHAT, 0, false, ROLE_USER);
         console.log(`${LOG_PREFIX} 已注入提示词 [${key}]，长度 ${content.length} 字符`);
 
         if (ephemeral) {
-            scheduleEphemeralCleanup(key, POS_IN_PROMPT, ROLE_SYSTEM);
+            scheduleEphemeralCleanup(key, POS_IN_CHAT, ROLE_USER);
         }
     }
 
@@ -398,11 +400,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             throw new Error('请输入有效的楼层范围。');
         }
         return start <= end ? { start, end } : { start: end, end: start };
-    }
-
-    function getLaunchRole(): LaunchRole {
-        const r = document.querySelector<HTMLInputElement>('input[name="smry-launch-role"]:checked');
-        return (r?.value ?? 'assistant') as LaunchRole;
     }
 
 
@@ -754,6 +751,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     }
 
     async function finalizeSummaryToWorldInfo(): Promise<void> {
+        activeSummaryPrompt = null;
         const preview = getPreviewText();
         if (!preview) {
             if (typeof toastr !== 'undefined') toastr.warning('当前没有可写入世界书的总结预览。', '总结');
@@ -804,6 +802,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
     }
 
     function clearPreview(): void {
+        activeSummaryPrompt = null;
         setPreviewText('');
         setPreviewStatus('待生成');
         summarySession.generatedMessageId = null;
@@ -820,6 +819,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         }
         setPreviewStatus('继续生成中...');
         summarySession.pendingPreview = true;
+        isContinueGeneration = true;
         updateContinueBtnState();
         await execSlashCmd('/continue');
     }
@@ -837,6 +837,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 
         eventSource.on(eventTypes.STREAM_TOKEN_RECEIVED, (text: string) => {
             if (!summarySession.pendingPreview || typeof text !== 'string') return;
+            if (isContinueGeneration) { setPreviewStatus('继续生成中...'); return; }
             const el = document.getElementById('smry-preview') as HTMLTextAreaElement | null;
             if (el) {
                 el.value = cleanAiResponse(text);
@@ -844,7 +845,25 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             }
         });
 
+        eventSource.on(eventTypes.CHAT_COMPLETION_PROMPT_READY, (data: any) => {
+            if (!pendingSummaryPrompt || data.dryRun) return;
+            const chat: any[] = data.chat;
+            const last = chat[chat.length - 1];
+            if (last?.role === 'assistant') {
+                chat.splice(chat.length - 1, 0, { role: 'user', content: pendingSummaryPrompt });
+            } else {
+                chat.push({ role: 'user', content: pendingSummaryPrompt });
+            }
+        });
+
+        eventSource.on(eventTypes.GENERATE_AFTER_COMBINE_PROMPTS, (data: any) => {
+            if (!pendingSummaryPrompt) return;
+            data.prompt += '\n\n' + pendingSummaryPrompt;
+        });
+
         eventSource.on(eventTypes.GENERATION_ENDED, async () => {
+            pendingSummaryPrompt = null;
+            isContinueGeneration = false;
             if (!summarySession.pendingPreview) return;
             summarySession.pendingPreview = false;
             await delay(200);
@@ -853,6 +872,8 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         });
 
         eventSource.on(eventTypes.GENERATION_STOPPED, () => {
+            pendingSummaryPrompt = null;
+            isContinueGeneration = false;
             if (!summarySession.pendingPreview) return;
             summarySession.pendingPreview = false;
             setPreviewStatus('生成已停止');
@@ -864,8 +885,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 
     async function executeSummary(isReroll: boolean = false): Promise<void> {
         const promptA = getInputVal('smry-prompt-a').trim();
-        const launchRole  = getLaunchRole();
-
         if (!promptA) {
             if (typeof toastr !== 'undefined') toastr.warning('请填写总结提示词。', '总结');
             return;
@@ -887,8 +906,9 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         const floorNote  = `「当前总结范围：第 ${range.start} 楼 ～ 第 ${range.end} 楼，请仅基于此范围内的聊天记录进行总结」`;
         const fullPrompt = `${floorNote}\n\n${promptA}`;
 
-        // 静默注入 A+B（ephemeral，生成后自动清除）
-        injectContextPrompt(INJECT_KEY_AB, fullPrompt, true);
+        // 通过事件钩子将提示词追加到上下文最末尾（在 JB/PHI 之后）
+        pendingSummaryPrompt = fullPrompt;
+        activeSummaryPrompt  = fullPrompt;
 
         // 首次执行：隐藏范围外楼层，使 AI 上下文仅包含 X~Y
         if (!isReroll) {
@@ -903,7 +923,7 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 
         if (typeof toastr !== 'undefined') {
             toastr.info(
-                `总结已启动（楼层 ${range.start} ～ ${range.end}，${launchRole} 模式）`,
+                `总结已启动（楼层 ${range.start} ～ ${range.end}）`,
                 '总结',
                 { timeOut: 4000 }
             );
@@ -912,14 +932,9 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         // 等待注入生效
         await delay(200);
 
-        // 按 C 选项触发
-        if (launchRole === 'assistant') {
-            injectChatTrigger(INJECT_KEY_USER, '（总结任务触发）', ROLE_USER, true);
-        }
-        await delay(200);
         await triggerGeneration();
 
-        console.log(`${LOG_PREFIX} 执行完成 [${range.start}~${range.end}] 模式: ${launchRole}`);
+        console.log(`${LOG_PREFIX} 执行完成 [${range.start}~${range.end}]`);
     }
 
     function delay(ms: number): Promise<void> {
@@ -1032,9 +1047,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         saveSetting(SK_START_FLOOR, getInputVal('smry-start-floor'));
         saveSetting(SK_END_FLOOR,   getInputVal('smry-end-floor'));
 
-        const launchR = document.querySelector<HTMLInputElement>('input[name="smry-launch-role"]:checked');
-        if (launchR) saveSetting(SK_LAUNCH, launchR.value);
-
         // 世界书设置
         saveSetting(SK_WI_BOOKNAME, getInputVal('smry-wi-bookname'));
         saveSetting(SK_WI_ENTRY,    getInputVal('smry-wi-entryname'));
@@ -1058,11 +1070,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
         set('smry-prompt-a',    SK_PROMPT_A);
         set('smry-start-floor', SK_START_FLOOR);
         set('smry-end-floor',   SK_END_FLOOR);
-
-        // 启动角色
-        const savedRole = (loadSetting(SK_LAUNCH) ?? 'assistant') as LaunchRole;
-        const r = document.querySelector<HTMLInputElement>(`input[name="smry-launch-role"][value="${savedRole}"]`);
-        if (r) r.checked = true;
 
         // 预设列表：内置预设强制同步（覆盖同名旧内容，补充缺失项），用户预设不受影响
         presets_a = loadSettingJSON<SummaryPreset[]>(SK_PRESETS_A, []);
@@ -1160,9 +1167,6 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
             ['smry-start-floor', 'smry-end-floor', 'smry-trigger-text',
              'smry-wi-bookname', 'smry-wi-entryname', 'smry-wi-extract-custom', 'smry-wi-depth'].forEach(id =>
                 document.getElementById(id)?.addEventListener('change', persistState)
-            );
-            document.querySelectorAll<HTMLInputElement>('input[name="smry-launch-role"]').forEach(r =>
-                r.addEventListener('change', persistState)
             );
             ['smry-wi-extract', 'smry-hide-source'].forEach(id =>
                 document.getElementById(id)?.addEventListener('change', persistState)
