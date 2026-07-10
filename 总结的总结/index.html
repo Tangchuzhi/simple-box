@@ -393,6 +393,10 @@
     opacity: 0.45;
 }
 
+.cpr-entry-row.cpr-drag-pressing {
+    border-color: var(--SmartThemeQuoteColor, #3498db);
+}
+
 .cpr-drag-handle {
     color: var(--SmartThemeTextColor);
     opacity: 0.35;
@@ -401,6 +405,7 @@
     flex-shrink: 0;
     padding: 0 2px;
     user-select: none;
+    touch-action: none;
 }
 
 .cpr-drag-handle:active {

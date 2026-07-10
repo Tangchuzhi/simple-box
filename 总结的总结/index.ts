@@ -522,8 +522,146 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
 
     let dragSrcIdx: number = -1;
 
+    interface PointerSortState {
+        pointerId: number;
+        sourceIdx: number;
+        targetIdx: number;
+        startX: number;
+        startY: number;
+        active: boolean;
+        row: HTMLElement;
+        list: HTMLElement;
+    }
+
+    let pointerSortState: PointerSortState | null = null;
+    const POINTER_SORT_THRESHOLD = 6;
+
     function persistEntries(): void {
         saveSetting(SK_ENTRIES, entries);
+    }
+
+    function clearEntryDragState(list: HTMLElement): void {
+        list.querySelectorAll('.cpr-entry-row').forEach(r => {
+            r.classList.remove('cpr-drag-over', 'cpr-dragging', 'cpr-drag-pressing');
+        });
+    }
+
+    function moveEntry(sourceIdx: number, targetIdx: number): void {
+        if (sourceIdx < 0 || targetIdx < 0 || sourceIdx === targetIdx) return;
+        if (sourceIdx >= entries.length || targetIdx >= entries.length) return;
+        const moved = entries.splice(sourceIdx, 1)[0];
+        entries.splice(targetIdx, 0, moved);
+        persistEntries();
+        renderEntryList();
+    }
+
+    function getPointerTargetRow(e: PointerEvent): HTMLElement | null {
+        const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+        return el?.closest?.('#cpr-entry-list .cpr-entry-row') as HTMLElement | null;
+    }
+
+    function finishPointerSort(e?: PointerEvent): void {
+        const state = pointerSortState;
+        if (!state) return;
+        pointerSortState = null;
+
+        document.removeEventListener('pointermove', onPointerSortMove, true);
+        document.removeEventListener('pointerup', onPointerSortEnd, true);
+        document.removeEventListener('pointercancel', onPointerSortCancel, true);
+
+        try {
+            if (e) state.row.releasePointerCapture?.(e.pointerId);
+        } catch {}
+
+        const shouldMove = state.active && state.targetIdx >= 0 && state.targetIdx !== state.sourceIdx;
+        clearEntryDragState(state.list);
+        if (shouldMove) {
+            moveEntry(state.sourceIdx, state.targetIdx);
+        }
+    }
+
+    function cancelPointerSort(e?: PointerEvent): void {
+        const state = pointerSortState;
+        if (!state) return;
+        pointerSortState = null;
+
+        document.removeEventListener('pointermove', onPointerSortMove, true);
+        document.removeEventListener('pointerup', onPointerSortEnd, true);
+        document.removeEventListener('pointercancel', onPointerSortCancel, true);
+
+        try {
+            if (e) state.row.releasePointerCapture?.(e.pointerId);
+        } catch {}
+
+        clearEntryDragState(state.list);
+    }
+
+    function onPointerSortMove(e: PointerEvent): void {
+        const state = pointerSortState;
+        if (!state || e.pointerId !== state.pointerId) return;
+
+        const dx = Math.abs(e.clientX - state.startX);
+        const dy = Math.abs(e.clientY - state.startY);
+        if (!state.active && Math.max(dx, dy) < POINTER_SORT_THRESHOLD) return;
+
+        e.preventDefault();
+        if (!state.active) {
+            state.active = true;
+            state.row.classList.remove('cpr-drag-pressing');
+            state.row.classList.add('cpr-dragging');
+        }
+
+        const targetRow = getPointerTargetRow(e);
+        state.list.querySelectorAll('.cpr-entry-row').forEach(r => r.classList.remove('cpr-drag-over'));
+        if (!targetRow) {
+            state.targetIdx = -1;
+            return;
+        }
+
+        const targetIdx = parseInt(targetRow.dataset.idx ?? '-1', 10);
+        state.targetIdx = targetIdx;
+        if (targetIdx >= 0 && targetIdx !== state.sourceIdx) {
+            targetRow.classList.add('cpr-drag-over');
+        }
+    }
+
+    function onPointerSortEnd(e: PointerEvent): void {
+        if (!pointerSortState || e.pointerId !== pointerSortState.pointerId) return;
+        e.preventDefault();
+        finishPointerSort(e);
+    }
+
+    function onPointerSortCancel(e: PointerEvent): void {
+        if (!pointerSortState || e.pointerId !== pointerSortState.pointerId) return;
+        cancelPointerSort(e);
+    }
+
+    function bindPointerSort(handle: HTMLElement, row: HTMLElement, idx: number, list: HTMLElement): void {
+        handle.addEventListener('pointerdown', (e: PointerEvent) => {
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            if (entries.length < 2) return;
+
+            e.preventDefault();
+            cancelPointerSort();
+
+            pointerSortState = {
+                pointerId: e.pointerId,
+                sourceIdx: idx,
+                targetIdx: idx,
+                startX: e.clientX,
+                startY: e.clientY,
+                active: false,
+                row,
+                list,
+            };
+
+            row.classList.add('cpr-drag-pressing');
+            try { row.setPointerCapture?.(e.pointerId); } catch {}
+
+            document.addEventListener('pointermove', onPointerSortMove, true);
+            document.addEventListener('pointerup', onPointerSortEnd, true);
+            document.addEventListener('pointercancel', onPointerSortCancel, true);
+        });
     }
 
     function renderEntryList(): void {
@@ -563,14 +701,16 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
                 renderEntryList();
             });
 
+            bindPointerSort(handle, row, idx, list);
+
             row.addEventListener('dragstart', (e: DragEvent) => {
                 dragSrcIdx = idx;
                 row.classList.add('cpr-dragging');
                 if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
             });
             row.addEventListener('dragend', () => {
-                row.classList.remove('cpr-dragging');
-                list.querySelectorAll('.cpr-entry-row').forEach(r => r.classList.remove('cpr-drag-over'));
+                dragSrcIdx = -1;
+                clearEntryDragState(list);
             });
             row.addEventListener('dragover', (e: DragEvent) => {
                 e.preventDefault();
@@ -584,11 +724,8 @@ YYYY年MM月DD日HH:MM~YYYY年MM月DD日HH:MM: 与事件1接续的事件2的精�
                 row.classList.remove('cpr-drag-over');
                 const targetIdx = parseInt(row.dataset.idx ?? '-1', 10);
                 if (dragSrcIdx < 0 || dragSrcIdx === targetIdx) return;
-                const moved = entries.splice(dragSrcIdx, 1)[0];
-                entries.splice(targetIdx, 0, moved);
+                moveEntry(dragSrcIdx, targetIdx);
                 dragSrcIdx = -1;
-                persistEntries();
-                renderEntryList();
             });
 
             row.appendChild(handle);
